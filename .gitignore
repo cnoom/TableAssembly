@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# 构建产物(可由 Excel 重新生成)
+out/
+
+# 本地用户配置(含本机绝对路径,每人不同)
+config.json
+
+# IDE / 编辑器
+.vscode/
+.idea/
+
+# ZCode 本地会话产物
+.zcode/

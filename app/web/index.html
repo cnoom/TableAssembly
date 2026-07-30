@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<title>Excel → 开发数据 导出工具</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Segoe UI", "Microsoft YaHei", sans-serif; background: #f5f6f8; color: #222; }
+  header { background: #2b3a55; color: #fff; padding: 14px 24px; font-size: 18px; font-weight: 600; }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 20px; }
+  .card { background: #fff; border: 1px solid #e3e6ea; border-radius: 8px; padding: 16px 18px; margin-bottom: 16px; box-shadow: 0 1px 2px rgba(0,0,0,.03); }
+  .card h2 { margin: 0 0 12px; font-size: 15px; color: #2b3a55; border-left: 3px solid #4a7dff; padding-left: 8px; }
+  .row { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+  .row label { width: 130px; color: #666; font-size: 13px; }
+  .row input[type=text] { flex: 1; min-width: 240px; padding: 7px 9px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
+  .hint { font-size: 11px; color: #999; margin-left: 4px; }
+  .actions { display: flex; gap: 10px; margin-top: 4px; flex-wrap: wrap; }
+  button { padding: 8px 16px; border: 0; border-radius: 4px; cursor: pointer; font-size: 13px; background: #4a7dff; color: #fff; transition: background .15s; }
+  button:hover { background: #3a66d8; }
+  button.ghost { background: #fff; color: #4a7dff; border: 1px solid #4a7dff; }
+  button.ghost:hover { background: #eef3ff; }
+  button.gray { background: #888; }
+  button.gray:hover { background: #777; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { padding: 7px 9px; border-bottom: 1px solid #eee; text-align: left; }
+  th { background: #fafbfc; color: #555; font-weight: 600; }
+  .ok { color: #2e8b57; font-weight: 600; }
+  .err { color: #d33; font-weight: 600; }
+  .warn { color: #d97706; font-weight: 600; }
+  .status-icon { font-size: 15px; }
+  .log { max-height: 320px; overflow-y: auto; background: #1e1e1e; color: #d4d4d4; padding: 12px; border-radius: 6px; font-family: Consolas, monospace; font-size: 12px; line-height: 1.6; }
+  .log .lv-ERROR { color: #ff6b6b; }
+  .log .lv-WARNING { color: #ffd166; }
+  .log .lv-INFO { color: #8dd0a8; }
+  .log .meta { color: #888; }
+  .table-list tr { cursor: pointer; }
+  .table-list tr:hover { background: #f0f5ff; }
+  .preview { display: none; }
+  .preview.active { display: block; }
+  .badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 11px; margin-right: 4px; }
+  .b-both { background: #e6f4ea; color: #1e7e34; }
+  .b-client { background: #e7f0ff; color: #1565c0; }
+  .b-server { background: #fff3e0; color: #b25400; }
+  .small { font-size: 12px; color: #888; }
+  .field-pill { display: inline-block; background: #f0f2f5; padding: 2px 7px; border-radius: 10px; margin: 2px; font-size: 12px; }
+  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #ccc; border-top-color: #4a7dff; border-radius: 50%; animation: spin .7s linear infinite; vertical-align: -2px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<header>Excel → 开发数据 导出工具</header>
+<div class="wrap">
+
+  <!-- 配置 -->
+  <div class="card">
+    <h2>路径配置</h2>
+    <div class="row"><label>Excel 输入目录</label><input id="input_dir" type="text" placeholder="F:\...\Excels" /></div>
+    <div class="row"><label>Client 二进制输出</label><input id="client_bin" type="text" placeholder="...\out_client_bin" /></div>
+    <div class="row"><label>Client 代码输出</label><input id="client_cs" type="text" placeholder="...\out_client_cs" /><span class="hint">命名空间按此目录推导</span><input id="client_namespace" type="text" placeholder="命名空间覆盖(可空)" style="max-width:180px" /><input id="client_lang" type="text" value="cs" style="max-width:90px" title="client 端代码语言" /><span class="hint">语言</span></div>
+    <div class="row"><label>Server 二进制输出</label><input id="server_bin" type="text" placeholder="...\out_server_bin" /></div>
+    <div class="row"><label>Server 代码输出</label><input id="server_cs" type="text" placeholder="...\out_server_cs" /><span class="hint">命名空间按此目录推导</span><input id="server_namespace" type="text" placeholder="命名空间覆盖(可空)" style="max-width:180px" /><input id="server_lang" type="text" value="cs" style="max-width:90px" title="server 端代码语言" /><span class="hint">语言</span></div>
+    <div class="row"><label>按表名建子目录</label><input id="subdirs_by_table" type="checkbox" /><span class="hint">勾选后代码文件放在 {表名}/ 子目录下;默认平铺在输出目录</span></div>
+    <div class="actions">
+      <button onclick="saveConfig()">💾 保存配置</button>
+      <button class="ghost" onclick="loadConfig()">读取配置</button>
+    </div>
+  </div>
+
+  <!-- 操作 -->
+  <div class="card">
+    <h2>操作</h2>
+    <div class="actions">
+      <button onclick="scan()">🔍 扫描表</button>
+      <button onclick="checkOnly()">✔️ 仅检查</button>
+      <button onclick="build('all')">▶ 全部构建</button>
+      <button class="ghost" onclick="build('client')">仅构建 Client</button>
+      <button class="ghost" onclick="build('server')">仅构建 Server</button>
+    </div>
+  </div>
+
+  <!-- 表列表 -->
+  <div class="card">
+    <h2>表列表 <span id="scan_meta" class="small"></span></h2>
+    <table class="table-list">
+      <thead><tr><th style="width:40px"></th><th>表名</th><th>行数</th><th>字段</th><th>错误/警告</th></tr></thead>
+      <tbody id="table_list"><tr><td colspan="5" class="small">尚未扫描</td></tr></tbody>
+    </table>
+  </div>
+
+  <!-- 预览 -->
+  <div class="card preview" id="preview_card">
+    <h2>预览: <span id="preview_title"></span></h2>
+    <div style="margin-bottom:10px"><span class="small">字段定义:</span><div id="preview_fields"></div></div>
+    <table id="preview_table"><thead></thead><tbody></tbody></table>
+  </div>
+
+  <!-- 日志 -->
+  <div class="card">
+    <h2>日志</h2>
+    <div class="log" id="log"><span class="meta">等待操作...</span></div>
+  </div>
+
+</div>
+
+<script>
+// ---------- 工具 ----------
+const $ = id => document.getElementById(id);
+function logLine(cls, text) {
+  const el = $('log');
+  if (el.querySelector('.meta')) el.innerHTML = '';
+  const line = document.createElement('div');
+  line.className = cls;
+  line.textContent = text;
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+}
+function clearLog() { $('log').innerHTML = '<span class="meta">...</span>'; }
+const API = location.pathname.replace(/\/$/, '');
+
+async function post(url, body) {
+  const r = await fetch(API + url, { method:'POST', headers:{'Content-Type':'application/json'}, body: body ? JSON.stringify(body) : undefined });
+  return r.json();
+}
+async function get(url) {
+  const r = await fetch(API + url);
+  return r.json();
+}
+
+// ---------- 配置 ----------
+async function loadConfig() {
+  const c = await get('/api/config');
+  for (const k of ['input_dir','client_bin','client_cs','server_bin','server_cs','client_namespace','server_namespace','client_lang','server_lang']) {
+    if ($(k)) $(k).value = c[k] || '';
+  }
+  $('subdirs_by_table').checked = !!c.subdirs_by_table;
+  logLine('lv-INFO', '已读取配置');
+}
+async function saveConfig() {
+  const body = {};
+  for (const k of ['input_dir','client_bin','client_cs','server_bin','server_cs','client_namespace','server_namespace','client_lang','server_lang']) {
+    body[k] = $(k).value;
+  }
+  body.subdirs_by_table = $('subdirs_by_table').checked;
+  const r = await post('/api/config', body);
+  logLine(r.ok ? 'lv-INFO' : 'lv-ERROR', r.ok ? '配置已保存' : ('保存失败: ' + JSON.stringify(r)));
+}
+
+// ---------- 扫描 ----------
+let lastTables = [], lastCheck = null;
+async function scan() {
+  $('scan_meta').innerHTML = '<span class="spinner"></span> 扫描中...';
+  const r = await get('/api/scan');
+  if (!r.ok) { logLine('lv-ERROR', r.error || '扫描失败'); $('scan_meta').textContent=''; return; }
+  lastTables = r.tables; lastCheck = r.check;
+  renderList();
+  const errs = r.check.total_errors, warns = r.check.total_warnings;
+  $('scan_meta').textContent = `共 ${r.tables.length} 张表 · ${errs} 错误 · ${warns} 警告`;
+  logLine(errs ? 'lv-ERROR' : 'lv-INFO', `扫描完成: ${r.tables.length} 表, ${errs} 错误, ${warns} 警告`);
+}
+
+function statusIcon(rep) {
+  if (!rep) return '❓';
+  if (rep.error_count > 0) return '❌';
+  if (rep.warning_count > 0) return '⚠️';
+  return '✅';
+}
+function renderList() {
+  const tbody = $('table_list'); tbody.innerHTML = '';
+  if (!lastTables.length) { tbody.innerHTML = '<tr><td colspan="5" class="small">无表</td></tr>'; return; }
+  const reportMap = {};
+  if (lastCheck) for (const t of lastCheck.tables) reportMap[t.table] = t;
+  lastTables.forEach((t, i) => {
+    const rep = reportMap[t.name];
+    const tr = document.createElement('tr');
+    tr.onclick = () => showPreview(i);
+    const fields = t.fields.map(f => `<span class="field-pill">${f.name}: ${f.type_name}${f.is_array && f.sep && f.sep!==',' ? '[sep='+f.sep+']':''} <span class="badge b-${f.side}">${f.side}</span></span>`).join('');
+    tr.innerHTML = `<td class="status-icon">${statusIcon(rep)}</td>
+      <td>${t.name}<br><span class="small">${t.file_name}</span></td>
+      <td>${t.row_count}</td>
+      <td>${fields}</td>
+      <td>${rep ? `<span class="${rep.error_count?'err':'ok'}">${rep.error_count}错</span> / <span class="${rep.warning_count?'warn':''}">${rep.warning_count}警</span>` : '-'}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+// ---------- 预览 ----------
+function showPreview(i) {
+  const t = lastTables[i]; if (!t) return;
+  $('preview_card').classList.add('active');
+  $('preview_title').textContent = t.name;
+  const rep = lastCheck && lastCheck.tables.find(x => x.table === t.name);
+  // 字段
+  $('preview_fields').innerHTML = t.fields.map(f =>
+    `<span class="field-pill">${f.name} : <b>${f.type_name}</b>${f.is_array && f.sep && f.sep!==',' ? ' sep='+f.sep : ''} <span class="badge b-${f.side}">${f.side}</span> ${f.desc?'· '+f.desc:''}</span>`).join('');
+  // 该表诊断
+  const ths = t.fields.map(f => `<th>${f.name}<br><span class="small">${f.type_name}</span></th>`).join('');
+  let rowsHtml = '';
+  if (rep) {
+    rep.issues.filter(is => is.level !== 'INFO').forEach(is => {
+      rowsHtml += `<tr style="background:#fff7f7"><td colspan="${t.fields.length+1}"><span class="${is.level==='ERROR'?'err':'warn'}">[${is.level}]</span> 行${is.row||'?'} · ${is.col||''} · ${is.message}</td></tr>`;
+    });
+  }
+  // 数据行(从诊断里没有原始数据,这里展示字段+诊断;若要展示数据需单独接口)
+  $('preview_table').innerHTML = `<thead><tr><th>#</th>${ths}</tr></thead><tbody>${rowsHtml || '<tr><td colspan="'+(t.fields.length+1)+'" class="small">展开「仅检查」可看每行诊断;原始数据请查 Excel。</td></tr>'}</tbody>`;
+}
+
+// ---------- 仅检查 ----------
+async function checkOnly() {
+  clearLog(); logLine('meta','检查中...');
+  const r = await post('/api/check');
+  if (!r.ok) { logLine('lv-ERROR', r.error || '检查失败'); return; }
+  lastCheck = r.check;
+  renderList();
+  dumpCheck(r.check);
+}
+
+function dumpCheck(check) {
+  check.tables.forEach(t => {
+    t.issues.forEach(is => {
+      const cls = is.level === 'ERROR' ? 'lv-ERROR' : (is.level === 'WARNING' ? 'lv-WARNING' : 'lv-INFO');
+      logLine(cls, `[${t.table}] 行${is.row ?? '-'} 列${is.col ?? '-'} ${is.message}`);
+    });
+  });
+  logLine(check.ok ? 'lv-INFO' : 'lv-ERROR',
+    check.ok ? `✅ 全部通过,${check.total_warnings} 警告` : `❌ ${check.total_errors} 错误,${check.total_warnings} 警告(已阻断导出)`);
+}
+
+// ---------- 构建 ----------
+async function build(side) {
+  clearLog();
+  logLine('meta', `构建(${side})中... 先校验,通过才导出`);
+  const r = await post('/api/build?side=' + side, {});
+  if (!r.ok) { logLine('lv-ERROR', r.error || '构建失败'); return; }
+  const res = r.result;
+  dumpCheck(res.check);
+  if (res.errors && res.errors.length) res.errors.forEach(e => logLine('lv-ERROR', '导出错误: ' + e));
+  if (res.ok && res.files.length) {
+    logLine('lv-INFO', `✅ 导出完成,共 ${res.files.length} 个文件:`);
+    res.files.forEach(f => logLine('lv-INFO', `  [${f.kind}] ${f.path}  (${f.size} B)`));
+  }
+}
+
+// ---------- 初始化 ----------
+loadConfig();
+</script>
+</body>
+</html>
