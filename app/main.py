@@ -24,7 +24,7 @@ from .checker import check_all
 
 WEB_DIR = Path(__file__).resolve().parent / "web"
 
-app = FastAPI(title="ExcelToDevData", version="1.0.0")
+app = FastAPI(title="TableAssembly", version="1.0.0")
 
 
 # ---------------- 网页 ----------------

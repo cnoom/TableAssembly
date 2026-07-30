@@ -147,7 +147,7 @@ return {table_cls}Table
 # 浮点用 string.unpack("<f") —— 5.3+ 支持;5.1/5.2 需用户提供等价实现或升级。
 # 为最大兼容性,这里用 struct 思路手写:5.3+ 走 string.unpack,否则降级。
 _READER_TEMPLATE = """-- 自动生成,请勿手动修改。通用二进制表读取器(小端)。
--- 与 ExcelToDevData 导出的 .bytes 严格对应。
+-- 与 TableAssembly 导出的 .bytes 严格对应。
 -- 兼容 Lua 5.1+:整数读取不依赖 string.unpack;浮点优先用 string.unpack("<f")(Lua 5.3+),
 -- 旧版本调用方可自行替换 readFloat32 的实现。
 

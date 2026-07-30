@@ -1,7 +1,7 @@
-# ExcelToDevData
+# TableAssembly
 
-把 Excel 表(.xlsx)转成 **二进制数据 + C# 数据类**,供 Unity 等工程使用。
-附带一个**本地网页可视化工具**,策划改完表 → 网页一键构建 → 自动产出 `.bytes` + `.cs`。
+把 Excel 表(.xlsx)转成 **二进制数据 + 多语言数据类**(C# / Go / Java / Lua),供 Unity 等游戏工程使用。
+附带一个**本地网页可视化工具**,策划改完表 → 网页一键构建 → 自动产出 `.bytes` + 代码。
 
 ## 快速开始
 

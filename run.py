@@ -11,7 +11,7 @@ def main() -> None:
     host = "127.0.0.1"
     port = 9900
     print("=" * 56)
-    print("  ExcelToDevData 已启动")
+    print("  TableAssembly 已启动")
     print(f"  打开浏览器访问: http://{host}:{port}")
     print("  按 Ctrl+C 停止")
     print("=" * 56)

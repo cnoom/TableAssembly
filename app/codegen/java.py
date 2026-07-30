@@ -257,7 +257,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 /** 通用二进制表读取器:仅负责解析二进制数据,文件加载由调用方自行处理。
- *  与 ExcelToDevData 导出的 .bytes 严格对应。 */
+ *  与 TableAssembly 导出的 .bytes 严格对应。 */
 public class TableReader {{
     private final ByteBuffer buf;
 
