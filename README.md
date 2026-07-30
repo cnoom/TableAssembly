@@ -1,7 +1,22 @@
 # TableAssembly
 
+> Excel → 游戏数据:把 `.xlsx` 配置表转成**紧凑二进制 + 多语言数据类**,自带本地网页构建工具。
+
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![Python](https://img.shields.io/badge/python-3.9+-green.svg)
+![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)
+![Langs](https://img.shields.io/badge/codegen-C%23%20%7C%20Go%20%7C%20Java%20%7C%20Lua-orange.svg)
+
 把 Excel 表(.xlsx)转成 **二进制数据 + 多语言数据类**(C# / Go / Java / Lua),供 Unity 等游戏工程使用。
 附带一个**本地网页可视化工具**,策划改完表 → 网页一键构建 → 自动产出 `.bytes` + 代码。
+
+**特点**
+- 🔧 **一键构建** — 本地网页可视化,改表 → 扫描 → 校验 → 导出,全流程零命令行
+- 🛡️ **强校验** — 类型转换、主键唯一、必填检查逐格诊断,有错阻断导出,杜绝半成品
+- 📦 **按端分包** — `#cs` 标记字段归属(`both`/`client`/`server`),前后端各自独立的 `.bytes` 与代码
+- 🌐 **多语言** — 内置 C# / Go / Java / Lua 生成器,前后端可分别指定不同语言
+- ⚡ **紧凑二进制** — 小端、无字段描述区,运行时零反射、零解析开销
+- 🔌 **加载解耦** — 生成的 Reader 只吃 `byte[]`,Resources/Addressables/包管理由调用方决定
 
 ## 快速开始
 
@@ -156,3 +171,7 @@ run.py             启动脚本
 2. 在 `app/codegen/__init__.py` 注册工厂:`GENERATORS["python"] = lambda ns: PythonGenerator(ns)`
 
 `exporter` 无需改动。前后端可分别指定语言(见「路径配置」中的语言输入框)。
+
+## License
+
+[MIT](./LICENSE) © 2026 cnoom-home
