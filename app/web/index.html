@@ -238,6 +238,90 @@ function toggleTheme() {
 }
 applyTheme(localStorage.getItem('theme') || 'light');
 
+// ---------- 帮助 Modal ----------
+const ROLE_MAP = {
+  'quick':   ['特点', '快速开始'],
+  'planner': ['表格式规范', '自定义校验规则', '校验规则'],
+  'coder':   ['产出', '二进制格式', '扩展其他语言'],
+  'project': ['项目结构', 'License'],
+};
+const ROLE_LABELS = {
+  'quick': '🎯 快速上手',
+  'planner': '✏️ 策划',
+  'coder': '💻 程序',
+  'project': '📁 项目结构',
+};
+let helpCache = null;
+
+async function openHelp() {
+  const modal = document.getElementById('help_modal');
+  modal.hidden = false;
+  if (helpCache) { renderHelp(helpCache); return; }
+  document.getElementById('help_tabs').innerHTML = '<span class="small">加载中...</span>';
+  document.getElementById('help_body').innerHTML = '';
+  try {
+    const r = await get('/api/help');
+    if (!r.ok) {
+      document.getElementById('help_tabs').innerHTML = '';
+      document.getElementById('help_body').innerHTML = '<p>⚠️ 文档加载失败: ' + (r.error || '未知错误') + '</p>';
+      return;
+    }
+    helpCache = r.sections;
+    renderHelp(r.sections);
+  } catch (e) {
+    document.getElementById('help_tabs').innerHTML = '';
+    document.getElementById('help_body').innerHTML = '<p>⚠️ 请求失败: ' + e + '</p>';
+  }
+}
+
+function closeHelp() {
+  document.getElementById('help_modal').hidden = true;
+}
+
+function renderHelp(sections) {
+  const byRole = {};
+  for (const role of Object.keys(ROLE_MAP)) byRole[role] = [];
+  for (const sec of sections) {
+    for (const [role, titles] of Object.entries(ROLE_MAP)) {
+      if (titles.includes(sec.title)) {
+        byRole[role].push(sec);
+        break;
+      }
+    }
+  }
+  const tabsEl = document.getElementById('help_tabs');
+  tabsEl.innerHTML = '';
+  const order = ['quick', 'planner', 'coder', 'project'];
+  order.forEach((role, idx) => {
+    const tab = document.createElement('span');
+    tab.className = 'modal-tab' + (idx === 0 ? ' active' : '');
+    tab.textContent = ROLE_LABELS[role];
+    tab.onclick = () => {
+      tabsEl.querySelectorAll('.modal-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      showRole(role, byRole[role]);
+    };
+    tabsEl.appendChild(tab);
+  });
+  showRole('quick', byRole['quick']);
+}
+
+function showRole(role, secs) {
+  const body = document.getElementById('help_body');
+  if (!secs || secs.length === 0) {
+    body.innerHTML = '<p>该部分文档暂未找到,请查阅 README.md。</p>';
+    return;
+  }
+  body.innerHTML = secs.map(s => s.html).join('\n<hr style="border:0;border-top:1px solid var(--border);margin:18px 0;">');
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !document.getElementById('help_modal').hidden) closeHelp();
+});
+document.getElementById('help_modal').addEventListener('click', e => {
+  if (e.target.id === 'help_modal') closeHelp();
+});
+
 // ---------- 工具 ----------
 const $ = id => document.getElementById(id);
 function logLine(cls, text) {
