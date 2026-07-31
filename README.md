@@ -50,6 +50,7 @@ python run.py
 | `#name` | 字段名行(代码用标识符) |
 | `#desc` | 字段说明行(注释) |
 | `#cs` | 归属行:`both` / `client` / `server` |
+| `#rule` | 字段规则行(可选,可多行);详见下方「自定义校验规则」 |
 | *(空)* | 数据行 |
 
 **示例**
@@ -104,6 +105,42 @@ TextAsset ta = Resources.Load<TextAsset>("Tables/Item_c");
 await table.LoadAsync(ta.bytes);
 ItemData item = table.Get(1001);   // id, name, hp, dropList ...
 ```
+
+## 自定义校验规则(可选)
+
+在表里加 `#rule` 定义行,可对**单个字段跨所有行**声明领域约束,校验不过即阻断导出。规则行可写多行(累加),也可留空单元格(只约束部分字段)。
+
+**示例**
+
+| A | B(id) | C(name) | D(hp) | E(dropList) |
+|---|-------|---------|-------|-------------|
+| `##` | int | string | int | int[sep=\|] |
+| `#name` | id | name | hp | dropList |
+| `#rule[sep=;]` | unique; sorted | non_empty; regex:^\S+$ | range:0,99999 | elem_range:1,9999 |
+| `#rule` | range:1000,9999 | | | |
+|  | 1001 | 木剑 | 50 | 1001\|1002 |
+
+**语法**
+
+- 多条规则默认用 `;` 分隔;可在 A 列写 `#rule[sep=##]` 改分隔符(`,` 不允许,与参数分隔符冲突)
+- 单条规则:`规则名` 或 `规则名:参数1,参数2`
+- 范围参数支持 `*` 表示不限:`range:0,*` = 只设下界
+
+**内置规则**
+
+| 规则 | 参数 | 适用类型 | 作用 |
+|------|------|---------|------|
+| `unique` | — | 任意标量 | 所有值唯一 |
+| `sorted` / `sorted_desc` | — | int/float | 严格递增 / 递减 |
+| `non_empty` | — | 任意 | 非空(空串/空数组视为空) |
+| `range` | `min,max` | int/float | 值在 [min,max] 内 |
+| `len` | `min,max` | 数组 | 数组长度在 [min,max] 内 |
+| `elem_range` | `min,max` | int[]/float[] | 每个元素在 [min,max] 内 |
+| `regex` | `PATTERN` | string | 正则全匹配 |
+| `in` | `a,b,c` | 任意标量 | 值在枚举集合内 |
+
+> 空值(空串/空数组)默认**不触发**逐值规则,由 `non_empty` 显式管空。主键为空仍按 ERROR 处理(内置)。
+> `len` 仅作用于数组;字符串长度约束请用 `regex`(如 `regex:^.{1,20}$`,但注意正则含逗号会被当参数分隔,改用不含逗号的写法)。
 
 ## 校验规则
 
