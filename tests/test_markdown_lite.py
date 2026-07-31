@@ -161,3 +161,28 @@ def test_split_sections_id_equals_title():
     md = "## 表格式规范\n\n内容。"
     secs = split_sections(md)
     assert secs[0]["id"] == "表格式规范"
+
+
+def test_real_readme_sections():
+    """真实 README.md 喂入:至少 8 个 ## 段。"""
+    from pathlib import Path
+    readme = Path(__file__).resolve().parent.parent / "README.md"
+    md = readme.read_text(encoding="utf-8")
+    secs = split_sections(md)
+    titles = [s["title"] for s in secs]
+    assert len(secs) >= 8, f"期望至少 8 段,实际 {len(secs)}: {titles}"
+    # 已知关键段必须存在
+    for must in ["特点", "快速开始", "表格式规范", "二进制格式", "项目结构"]:
+        assert must in titles, f"缺失段落「{must}」, 实际: {titles}"
+    # 每段 html 非空
+    for s in secs:
+        assert s["html"].strip() != "", f"段落「{s['title']}」html 为空"
+
+
+def test_real_readme_html_no_raw_script():
+    """转换后不应出现原始 <script> 标签(转义检查)。"""
+    from pathlib import Path
+    readme = Path(__file__).resolve().parent.parent / "README.md"
+    md = readme.read_text(encoding="utf-8")
+    for s in split_sections(md):
+        assert "<script>" not in s["html"]
