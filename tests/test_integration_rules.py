@@ -114,3 +114,29 @@ def test_sample_itemrules_file_exists_and_valid():
     s = excel_reader.read_table(SAMPLE)
     rep = checker.check_table(s)
     assert rep.ok, [i.message for i in rep.issues if i.level == "ERROR"]
+
+
+def test_rule_violation_blocks_export(tmp_path):
+    """规则违规时,exporter.export_all 必须拒绝写任何文件(硬闸门承诺)。
+
+    覆盖核心集成契约:#rule 违规 → check_all.ok=False → exporter 不导出。
+    """
+    from app import exporter
+
+    # 构造一张违规表(hp=-1 违反 range:0,99999)
+    bad_xlsx = tmp_path / "Bad.xlsx"
+    _make(bad_xlsx, list(GOOD_TABLE[:6]) + [("", 1002, "铁剑", -1, "1003")])
+
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    cfg = exporter.ExportConfig(
+        input_dir=str(tmp_path),
+        client=exporter.SideConfig(bin_dir=str(out_dir), cs_dir=str(out_dir), lang="cs"),
+        server=exporter.SideConfig(),
+    )
+    result = exporter.export_all(cfg)
+    assert result.ok is False, "违规表应阻断导出"
+    assert result.error_count > 0
+    assert result.files == [], f"违规时不应写出文件,实际写了 {result.files}"
+    # 输出目录应保持空(没有 .bytes / .cs)
+    assert list(out_dir.iterdir()) == []
