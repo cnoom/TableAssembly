@@ -17,6 +17,7 @@
 - 🌐 **多语言** — 内置 C# / Go / Java / Lua 生成器,前后端可分别指定不同语言
 - ⚡ **紧凑二进制** — 小端、无字段描述区,运行时零反射、零解析开销
 - 🔌 **加载解耦** — 生成的 Reader 只吃 `byte[]`,Resources / Addressables / 包管理由调用方决定
+- ❓ **内置帮助** — 网页内按角色分 Tab 的帮助文档(策划 / 程序 / 项目结构),内容自动同步自本 README;支持明暗主题切换
 
 ## 快速开始
 
@@ -176,13 +177,14 @@ app/
   checker.py        分级校验(错误/警告/通过)
   binary_writer.py  紧凑二进制打包
   exporter.py       按归属分包编排
+  markdown_lite.py  零依赖 markdown→HTML + README 段落切片(供帮助页)
   codegen/
     base.py         生成器抽象基类
     cs.py           C# 生成器
     go.py           Go 生成器
     java.py         Java 生成器
     lua.py          Lua 生成器
-  web/index.html    可视化网页
+  web/index.html    可视化网页(路径配置 / 扫描 / 构建 / 帮助 Modal / 明暗主题)
 sample/Item.xlsx    示例表
 run.py              启动脚本
 ```

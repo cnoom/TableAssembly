@@ -4,51 +4,162 @@
 <meta charset="UTF-8" />
 <title>Excel → 开发数据 导出工具</title>
 <style>
+  :root {
+    --bg: #f5f6f8;
+    --surface: #fff;
+    --surface-2: #fafbfc;
+    --text: #222;
+    --text-muted: #666;
+    --text-faint: #999;
+    --border: #e3e6ea;
+    --border-light: #eee;
+    --input-border: #ccc;
+    --primary: #4a7dff;
+    --primary-hover: #3a66d8;
+    --primary-bg: #eef3ff;
+    --header-bg: #2b3a55;
+    --log-bg: #1e1e1e;
+    --log-text: #d4d4d4;
+    --log-meta: #888;
+    --row-hover: #f0f5ff;
+    --badge-both-bg: #e6f4ea; --badge-both-tx: #1e7e34;
+    --badge-client-bg: #e7f0ff; --badge-client-tx: #1565c0;
+    --badge-server-bg: #fff3e0; --badge-server-tx: #b25400;
+    --code-bg: #f0f2f5;
+    --field-pill-bg: #f0f2f5;
+    --ok: #2e8b57; --err: #d33; --warn: #d97706;
+  }
   * { box-sizing: border-box; }
-  body { margin: 0; font-family: "Segoe UI", "Microsoft YaHei", sans-serif; background: #f5f6f8; color: #222; }
-  header { background: #2b3a55; color: #fff; padding: 14px 24px; font-size: 18px; font-weight: 600; }
+  body { margin: 0; font-family: "Segoe UI", "Microsoft YaHei", sans-serif; background: var(--bg); color: var(--text); }
+  header { background: var(--header-bg); color: #fff; padding: 14px 24px; font-size: 18px; font-weight: 600; }
   .wrap { max-width: 1200px; margin: 0 auto; padding: 20px; }
-  .card { background: #fff; border: 1px solid #e3e6ea; border-radius: 8px; padding: 16px 18px; margin-bottom: 16px; box-shadow: 0 1px 2px rgba(0,0,0,.03); }
-  .card h2 { margin: 0 0 12px; font-size: 15px; color: #2b3a55; border-left: 3px solid #4a7dff; padding-left: 8px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px 18px; margin-bottom: 16px; box-shadow: 0 1px 2px rgba(0,0,0,.03); }
+  .card h2 { margin: 0 0 12px; font-size: 15px; color: var(--header-bg); border-left: 3px solid var(--primary); padding-left: 8px; }
   .row { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
-  .row label { width: 130px; color: #666; font-size: 13px; }
-  .row input[type=text] { flex: 1; min-width: 240px; padding: 7px 9px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
-  .hint { font-size: 11px; color: #999; margin-left: 4px; }
+  .row label { width: 130px; color: var(--text-muted); font-size: 13px; }
+  .row input[type=text] { flex: 1; min-width: 240px; padding: 7px 9px; border: 1px solid var(--input-border); border-radius: 4px; font-size: 13px; }
+  .hint { font-size: 11px; color: var(--text-faint); margin-left: 4px; }
   .actions { display: flex; gap: 10px; margin-top: 4px; flex-wrap: wrap; }
-  button { padding: 8px 16px; border: 0; border-radius: 4px; cursor: pointer; font-size: 13px; background: #4a7dff; color: #fff; transition: background .15s; }
-  button:hover { background: #3a66d8; }
-  button.ghost { background: #fff; color: #4a7dff; border: 1px solid #4a7dff; }
-  button.ghost:hover { background: #eef3ff; }
-  button.gray { background: #888; }
-  button.gray:hover { background: #777; }
+  button { padding: 8px 16px; border: 0; border-radius: 4px; cursor: pointer; font-size: 13px; background: var(--primary); color: #fff; transition: background .15s; }
+  button:hover { background: var(--primary-hover); }
+  button.ghost { background: var(--surface); color: var(--primary); border: 1px solid var(--primary); }
+  button.ghost:hover { background: var(--primary-bg); }
+  button.gray { background: var(--text-muted); }
+  button.gray:hover { background: var(--text-muted); }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th, td { padding: 7px 9px; border-bottom: 1px solid #eee; text-align: left; }
-  th { background: #fafbfc; color: #555; font-weight: 600; }
-  .ok { color: #2e8b57; font-weight: 600; }
-  .err { color: #d33; font-weight: 600; }
-  .warn { color: #d97706; font-weight: 600; }
+  th, td { padding: 7px 9px; border-bottom: 1px solid var(--border-light); text-align: left; }
+  th { background: var(--surface-2); color: var(--text-muted); font-weight: 600; }
+  .ok { color: var(--ok); font-weight: 600; }
+  .err { color: var(--err); font-weight: 600; }
+  .warn { color: var(--warn); font-weight: 600; }
   .status-icon { font-size: 15px; }
-  .log { max-height: 320px; overflow-y: auto; background: #1e1e1e; color: #d4d4d4; padding: 12px; border-radius: 6px; font-family: Consolas, monospace; font-size: 12px; line-height: 1.6; }
+  .log { max-height: 320px; overflow-y: auto; background: var(--log-bg); color: var(--log-text); padding: 12px; border-radius: 6px; font-family: Consolas, monospace; font-size: 12px; line-height: 1.6; }
   .log .lv-ERROR { color: #ff6b6b; }
   .log .lv-WARNING { color: #ffd166; }
   .log .lv-INFO { color: #8dd0a8; }
-  .log .meta { color: #888; }
+  .log .meta { color: var(--log-meta); }
   .table-list tr { cursor: pointer; }
-  .table-list tr:hover { background: #f0f5ff; }
+  .table-list tr:hover { background: var(--row-hover); }
   .preview { display: none; }
   .preview.active { display: block; }
   .badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 11px; margin-right: 4px; }
-  .b-both { background: #e6f4ea; color: #1e7e34; }
-  .b-client { background: #e7f0ff; color: #1565c0; }
-  .b-server { background: #fff3e0; color: #b25400; }
-  .small { font-size: 12px; color: #888; }
-  .field-pill { display: inline-block; background: #f0f2f5; padding: 2px 7px; border-radius: 10px; margin: 2px; font-size: 12px; }
+  .b-both { background: var(--badge-both-bg); color: var(--badge-both-tx); }
+  .b-client { background: var(--badge-client-bg); color: var(--badge-client-tx); }
+  .b-server { background: var(--badge-server-bg); color: var(--badge-server-tx); }
+  .small { font-size: 12px; color: var(--log-meta); }
+  .field-pill { display: inline-block; background: var(--field-pill-bg); padding: 2px 7px; border-radius: 10px; margin: 2px; font-size: 12px; }
   .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #ccc; border-top-color: #4a7dff; border-radius: 50%; animation: spin .7s linear infinite; vertical-align: -2px; }
   @keyframes spin { to { transform: rotate(360deg); } }
+  [data-theme="dark"] {
+    --bg: #1a1d23;
+    --surface: #252932;
+    --surface-2: #2d323d;
+    --text: #e4e6eb;
+    --text-muted: #9aa0aa;
+    --text-faint: #7a808a;
+    --border: #3a3f4a;
+    --border-light: #333842;
+    --input-border: #444a55;
+    --primary: #5b8eff;
+    --primary-hover: #7aa2ff;
+    --primary-bg: #2a3550;
+    --header-bg: #1e2533;
+    --log-bg: #111317;
+    --log-text: #d4d4d4;
+    --log-meta: #6a707a;
+    --row-hover: #2a3040;
+    --badge-both-bg: #1e3a2a; --badge-both-tx: #5ac878;
+    --badge-client-bg: #1a2a4a; --badge-client-tx: #6ba6ff;
+    --badge-server-bg: #3a2a14; --badge-server-tx: #e8a45c;
+    --code-bg: #333842;
+    --field-pill-bg: #333842;
+  }
+  header { display: flex; justify-content: space-between; align-items: center; }
+  .header-title { font-size: 18px; font-weight: 600; }
+  .header-actions { display: flex; gap: 8px; }
+  .icon-btn, .help-btn {
+    background: rgba(255,255,255,.12); color: #fff; border: 1px solid rgba(255,255,255,.2);
+    padding: 5px 12px; border-radius: 4px; cursor: pointer; font-size: 13px;
+  }
+  .icon-btn:hover, .help-btn:hover { background: rgba(255,255,255,.22); }
+  .modal-mask {
+    position: fixed; inset: 0; background: rgba(0,0,0,.5);
+    display: flex; align-items: center; justify-content: center; z-index: 1000;
+  }
+  .modal-mask[hidden] { display: none; }
+  .modal-box {
+    background: var(--surface); color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; width: 92%; max-width: 900px; max-height: 85vh;
+    display: flex; flex-direction: column; box-shadow: 0 8px 32px rgba(0,0,0,.3);
+  }
+  .modal-head {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 18px; border-bottom: 1px solid var(--border);
+  }
+  .modal-title { font-size: 16px; font-weight: 600; color: var(--primary); }
+  .modal-close {
+    background: transparent; color: var(--text-muted); border: 0;
+    font-size: 18px; cursor: pointer; padding: 2px 8px;
+  }
+  .modal-close:hover { color: var(--err); }
+  .modal-tabs { display: flex; gap: 4px; padding: 8px 12px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .modal-tab {
+    padding: 6px 14px; border-radius: 4px; cursor: pointer; font-size: 13px;
+    color: var(--text-muted); border: 1px solid transparent;
+  }
+  .modal-tab:hover { color: var(--text); }
+  .modal-tab.active { background: var(--primary); color: #fff; }
+  .modal-body { overflow-y: auto; padding: 20px 28px; flex: 1; line-height: 1.7; }
+  .modal-body h2 { color: var(--primary); border-left: 3px solid var(--primary); padding-left: 8px; margin: 22px 0 10px; font-size: 16px; }
+  .modal-body h3 { color: var(--text); margin: 16px 0 6px; font-size: 14px; }
+  .modal-body p { margin: 8px 0; }
+  .modal-body table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 13px; }
+  .modal-body th, .modal-body td { padding: 7px 9px; border: 1px solid var(--border); text-align: left; }
+  .modal-body th { background: var(--surface-2); }
+  .modal-body pre {
+    background: var(--log-bg); color: var(--log-text); padding: 12px;
+    border-radius: 6px; overflow-x: auto; margin: 10px 0; font-size: 12px;
+  }
+  .modal-body code { background: var(--code-bg); padding: 1px 5px; border-radius: 3px; font-family: Consolas, monospace; font-size: 12px; }
+  .modal-body pre code { background: transparent; padding: 0; }
+  .modal-body ul, .modal-body ol { margin: 8px 0; padding-left: 24px; }
+  .modal-body li { margin: 3px 0; }
+  .modal-body a { color: var(--primary); }
+  .modal-body blockquote { border-left: 3px solid var(--border); margin: 10px 0; padding: 4px 12px; color: var(--text-muted); }
 </style>
+<script>
+  document.documentElement.setAttribute('data-theme',
+    localStorage.getItem('theme') || 'light');
+</script>
 </head>
 <body>
-<header>Excel → 开发数据 导出工具</header>
+<header>
+  <span class="header-title">Excel → 开发数据 导出工具</span>
+  <span class="header-actions">
+    <button class="icon-btn" onclick="toggleTheme()" title="切换主题"><span id="theme_icon">🌙</span></button>
+    <button class="help-btn" onclick="openHelp()">❓ 帮助</button>
+  </span>
+</header>
 <div class="wrap">
 
   <!-- 配置 -->
@@ -102,7 +213,115 @@
 
 </div>
 
+<!-- 帮助 Modal -->
+<div class="modal-mask" id="help_modal" hidden>
+  <div class="modal-box">
+    <div class="modal-head">
+      <span class="modal-title">📖 帮助文档</span>
+      <button class="modal-close" onclick="closeHelp()">✕</button>
+    </div>
+    <div class="modal-tabs" id="help_tabs"></div>
+    <div class="modal-body" id="help_body"></div>
+  </div>
+</div>
+
 <script>
+function applyTheme(t) {
+  document.documentElement.setAttribute('data-theme', t);
+  localStorage.setItem('theme', t);
+  const el = document.getElementById('theme_icon');
+  if (el) el.textContent = (t === 'dark') ? '☀️' : '🌙';
+}
+function toggleTheme() {
+  const cur = document.documentElement.getAttribute('data-theme') || 'light';
+  applyTheme(cur === 'dark' ? 'light' : 'dark');
+}
+applyTheme(localStorage.getItem('theme') || 'light');
+
+// ---------- 帮助 Modal ----------
+const ROLE_MAP = {
+  'quick':   ['特点', '快速开始'],
+  'planner': ['表格式规范', '自定义校验规则(可选)', '校验规则'],
+  'coder':   ['产出', '二进制格式', '扩展其他语言'],
+  'project': ['项目结构', 'License'],
+};
+const ROLE_LABELS = {
+  'quick': '🎯 快速上手',
+  'planner': '✏️ 策划',
+  'coder': '💻 程序',
+  'project': '📁 项目结构',
+};
+let helpCache = null;
+
+async function openHelp() {
+  const modal = document.getElementById('help_modal');
+  modal.hidden = false;
+  if (helpCache) { renderHelp(helpCache); return; }
+  document.getElementById('help_tabs').innerHTML = '<span class="small">加载中...</span>';
+  document.getElementById('help_body').innerHTML = '';
+  try {
+    const r = await get('/api/help');
+    if (!r.ok) {
+      document.getElementById('help_tabs').innerHTML = '';
+      document.getElementById('help_body').innerHTML = '<p>⚠️ 文档加载失败: ' + (r.error || '未知错误') + '</p>';
+      return;
+    }
+    helpCache = r.sections;
+    renderHelp(r.sections);
+  } catch (e) {
+    document.getElementById('help_tabs').innerHTML = '';
+    document.getElementById('help_body').innerHTML = '<p>⚠️ 请求失败: ' + e + '</p>';
+  }
+}
+
+function closeHelp() {
+  document.getElementById('help_modal').hidden = true;
+}
+
+function renderHelp(sections) {
+  const byRole = {};
+  for (const role of Object.keys(ROLE_MAP)) byRole[role] = [];
+  for (const sec of sections) {
+    for (const [role, titles] of Object.entries(ROLE_MAP)) {
+      if (titles.includes(sec.title)) {
+        byRole[role].push(sec);
+        break;
+      }
+    }
+  }
+  const tabsEl = document.getElementById('help_tabs');
+  tabsEl.innerHTML = '';
+  const order = ['quick', 'planner', 'coder', 'project'];
+  order.forEach((role, idx) => {
+    const tab = document.createElement('span');
+    tab.className = 'modal-tab' + (idx === 0 ? ' active' : '');
+    tab.textContent = ROLE_LABELS[role];
+    tab.onclick = () => {
+      tabsEl.querySelectorAll('.modal-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      showRole(role, byRole[role]);
+    };
+    tabsEl.appendChild(tab);
+  });
+  showRole('quick', byRole['quick']);
+}
+
+function showRole(role, secs) {
+  const body = document.getElementById('help_body');
+  if (!secs || secs.length === 0) {
+    body.innerHTML = '<p>该部分文档暂未找到,请查阅 README.md。</p>';
+    return;
+  }
+  body.innerHTML = secs.map(s => s.html).join('\n<hr style="border:0;border-top:1px solid var(--border);margin:18px 0;">');
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !document.getElementById('help_modal').hidden) closeHelp();
+});
+document.getElementById('help_modal').addEventListener('click', e => {
+  if (e.target.id === 'help_modal') closeHelp();
+});
+
 // ---------- 工具 ----------
 const $ = id => document.getElementById(id);
 function logLine(cls, text) {

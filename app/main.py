@@ -18,6 +18,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
 
 from . import exporter
+from . import markdown_lite
 from .config import AppConfig, load_config, save_config
 from .excel_reader import scan_directory
 from .checker import check_all
@@ -123,3 +124,19 @@ def api_build(side: str = Query("all", pattern="^(client|server|all)$")) -> dict
 
     result = exporter.export_all(exp_cfg)
     return {"ok": result.ok, "result": result.to_dict()}
+
+
+# ---------------- 帮助文档 ----------------
+
+@app.get("/api/help")
+def api_help() -> dict[str, Any]:
+    readme_path = Path(__file__).resolve().parent.parent / "README.md"
+    try:
+        text = readme_path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return {"ok": False, "error": "README.md 未找到", "sections": []}
+    try:
+        sections = markdown_lite.split_sections(text)
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": f"文档解析失败: {e}", "sections": []}
+    return {"ok": True, "source": "README.md", "sections": sections}
