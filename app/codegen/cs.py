@@ -171,93 +171,96 @@ namespace {ns}
 """
 
 
-# 共用 TableReader:不依赖任何具体表,内容固定,仅命名空间变化
+# 共用 TableReader:不依赖任何具体表,内容固定,仅命名空间变化。
+# 渲染用 str.replace("{NS}", ...)(非 str.format),所以模板里的 C# 花括号
+# 直接写单 { / } 即可,不要写 {{ / }} —— 那是 f-string/format 的转义写法,
+# 在 replace 下不会被还原,会导致生成的 .cs 无法编译(见 test_codegen_compile)。
 _READER_TEMPLATE = '''// 自动生成,请勿手动修改。通用二进制表读取器。
 using System.Text;
 
 namespace {NS}
-{{
+{
     /// <summary>通用二进制表读取器:仅负责解析二进制数据,文件加载由调用方自行处理。
     /// 与 TableAssembly 导出的 .bytes 严格对应。</summary>
     public class TableReader
-    {{
+    {
         private readonly byte[] _data;
         private int _pos;
 
-        public TableReader(byte[] data) {{ _data = data; _pos = 0; }}
+        public TableReader(byte[] data) { _data = data; _pos = 0; }
 
         public bool CheckMagic(string magic)
-        {{
+        {
             for (int i = 0; i < magic.Length; i++)
                 if (_data[_pos + i] != (byte)magic[i]) return false;
             _pos += magic.Length;
             return true;
-        }}
+        }
 
         public short ReadInt16()
-        {{
+        {
             int v = _data[_pos] | (_data[_pos + 1] << 8);
             _pos += 2;
             return (short)v;
-        }}
+        }
 
         public int ReadInt32()
-        {{
+        {
             int v = _data[_pos] | (_data[_pos + 1] << 8) | (_data[_pos + 2] << 16) | (_data[_pos + 3] << 24);
             _pos += 4;
             return v;
-        }}
+        }
 
         public float ReadSingle() => BitConverter.Int32BitsToSingle(ReadInt32());
 
         public bool ReadBoolean()
-        {{
+        {
             bool v = _data[_pos] != 0;
             _pos += 1;
             return v;
-        }}
+        }
 
         public string ReadString()
-        {{
+        {
             short len = ReadInt16();
             string s = Encoding.UTF8.GetString(_data, _pos, len);
             _pos += len;
             return s;
-        }}
+        }
 
         public int[] ReadInt32Array()
-        {{
+        {
             int n = ReadInt32();
             int[] a = new int[n];
             for (int i = 0; i < n; i++) a[i] = ReadInt32();
             return a;
-        }}
+        }
 
         public float[] ReadSingleArray()
-        {{
+        {
             int n = ReadInt32();
             float[] a = new float[n];
             for (int i = 0; i < n; i++) a[i] = ReadSingle();
             return a;
-        }}
+        }
 
         public bool[] ReadBooleanArray()
-        {{
+        {
             int n = ReadInt32();
             bool[] a = new bool[n];
             for (int i = 0; i < n; i++) a[i] = ReadBoolean();
             return a;
-        }}
+        }
 
         public string[] ReadStringArray()
-        {{
+        {
             int n = ReadInt32();
             string[] a = new string[n];
             for (int i = 0; i < n; i++) a[i] = ReadString();
             return a;
-        }}
-    }}
-}}
+        }
+    }
+}
 '''
 
 
