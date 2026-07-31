@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import html
+import re
 
 
 def split_sections(md: str) -> list[dict]:
@@ -37,7 +38,7 @@ def markdown_to_html(md: str) -> str:
     def flush():
         if para:
             text = " ".join(l.strip() for l in para)
-            out.append(f"<p>{html.escape(text)}</p>")
+            out.append(f"<p>{_inline(text)}</p>")
             para.clear()
 
     while i < n:
@@ -56,6 +57,15 @@ def markdown_to_html(md: str) -> str:
             out.append(f"<pre><code>{code}</code></pre>")
             continue
 
+        # 标题 # ~ ######
+        m = re.match(r"^(#{1,6})\s+(.*)$", line)
+        if m:
+            flush()
+            lvl = len(m.group(1))
+            out.append(f"<h{lvl}>{_inline(m.group(2).strip())}</h{lvl}>")
+            i += 1
+            continue
+
         # 空行 = 段落边界
         if not line.strip():
             flush()
@@ -67,3 +77,19 @@ def markdown_to_html(md: str) -> str:
 
     flush()
     return "\n".join(out)
+
+
+def _inline(text: str) -> str:
+    """行内转义 + code/bold/link。
+
+    顺序很重要:先 escape,再用正则在已转义文本上做替换。
+    内联 code 优先(其内部内容不应被 bold/link 处理)。
+    """
+    esc = html.escape(text)
+    # 内联 code:`...`
+    esc = re.sub(r"`([^`]+)`", lambda m: f"<code>{m.group(1)}</code>", esc)
+    # 粗体:**...**
+    esc = re.sub(r"\*\*([^*]+)\*\*", r"<b>\1</b>", esc)
+    # 链接:[text](url)
+    esc = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r'<a href="\2">\1</a>', esc)
+    return esc
