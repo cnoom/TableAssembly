@@ -46,6 +46,9 @@ VALID_SIDES = ("both", "client", "server")
 class FieldRule:
     """解析后的一条规则(可能含解析期错误)。
 
+    通常应由 ``app.rules.parse_rule`` 构造(它会填充 parse_errors);
+    手动构造时若 name 不在 rules.REGISTRY,checker 会静默跳过该规则(不报错、不执行)。
+
     由 excel_reader 从 #rule 行切分得到;checker 负责:
     1) 回显 parse_errors(规则名未知、参数个数错等)
     2) 按 name 查(后续提供的)REGISTRY 执行校验

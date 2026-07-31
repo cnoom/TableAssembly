@@ -1,6 +1,6 @@
 """checker 调度规则:L2 回显、L3 类型守卫、空值跳过、聚合定位、逐值定位。"""
 from app import checker
-from app.schema import FieldDef, FieldRule, T_INT, T_STRING, T_INT_ARRAY
+from app.schema import FieldRule, T_INT, T_STRING
 
 from tests.conftest import make_field, make_schema
 
@@ -67,11 +67,16 @@ def test_non_empty_catches_empty():
 
 # —— 聚合规则:定位到冲突行 ——
 def test_aggregate_unique_located():
-    f = make_field("id", T_INT, rules=[FieldRule(name="unique", params=[], parse_errors=[])])
-    s = make_schema(fields=[f], rows=[(2, [1001]), (3, [1002]), (4, [1001])])
+    # 用非主键字段隔离 unique 规则(避免内置「主键唯一」检查一起满足断言)
+    # rows:[(row_index, [id, code]), ...];id 列唯一,code 列 1001 在行 4 重复
+    f_id = make_field("id", T_INT)  # 主键,值唯一,不触发内置主键检查
+    f_code = make_field("code", T_INT, rules=[FieldRule(name="unique", params=[], parse_errors=[])])
+    s = make_schema(fields=[f_id, f_code], rows=[(2, [1, 1001]), (3, [2, 1002]), (4, [3, 1001])])
     rep = checker.check_table(s)
     errs = _errors(rep)
-    assert any(r == 4 and c == "id" for (r, c, _) in errs)
+    # code 字段在行 4 因 unique 规则报错(1001 与行 2 重复)
+    assert any(r == 4 and c == "code" for (r, c, _) in errs)
+    assert any("unique" in m and "code" in m for (_, _, m) in errs)
 
 
 # —— 无规则字段不受影响 ——
