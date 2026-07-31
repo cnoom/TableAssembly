@@ -27,6 +27,8 @@ from .schema import (
     T_STRING,
     T_INT_ARRAY,
     T_FLOAT_ARRAY,
+    T_BOOL_ARRAY,
+    T_STRING_ARRAY,
 )
 
 
@@ -151,12 +153,91 @@ class ElemRangeRule(Rule):
         return None
 
 
+class LenRule(Rule):
+    name = "len"
+    applicable_types = {T_INT_ARRAY, T_FLOAT_ARRAY, T_BOOL_ARRAY, T_STRING_ARRAY}
+    is_aggregate = False
+    n_params = (2, 2)
+
+    def validate_params(self, params: list[str]) -> str | None:
+        lo = _parse_bound(params[0])
+        hi = _parse_bound(params[1])
+        if lo == "ERR" or hi == "ERR":
+            return f"参数非法(应为整数或 *): {params}"
+        if lo is None and hi is None:
+            return "len 两边都为 * 无意义"
+        if lo is not None and (lo < 0 or not float(lo).is_integer()):
+            return f"长度下界必须是非负整数,得到 {params[0]}"
+        if hi is not None and (hi < 0 or not float(hi).is_integer()):
+            return f"长度上界必须是非负整数,得到 {params[1]}"
+        if lo is not None and hi is not None and lo > hi:
+            return f"长度下界 {lo:g} 大于上界 {hi:g}"
+        return None
+
+    def check_value(self, value: Any, params: list[str]) -> str | None:
+        if not isinstance(value, list):
+            return f"len 仅作用于数组,得到 {type(value).__name__}"
+        n = len(value)
+        lo = _parse_bound(params[0])
+        hi = _parse_bound(params[1])
+        if lo is not None and n < lo:
+            return f"长度 {n} 小于下界 {int(lo)}"
+        if hi is not None and n > hi:
+            return f"长度 {n} 大于上界 {int(hi)}"
+        return None
+
+
+class RegexRule(Rule):
+    name = "regex"
+    applicable_types = {T_STRING}
+    is_aggregate = False
+    n_params = (1, 1)
+
+    def validate_params(self, params: list[str]) -> str | None:
+        import re
+        try:
+            re.compile(params[0])
+        except re.error as e:
+            return f"正则表达式非法: {e}"
+        return None
+
+    def check_value(self, value: Any, params: list[str]) -> str | None:
+        import re
+        if not isinstance(value, str):
+            return f"regex 仅作用于 string,得到 {type(value).__name__}"
+        if not re.fullmatch(params[0], value):
+            return f"值 {value!r} 不匹配正则 {params[0]!r}"
+        return None
+
+
+class InRule(Rule):
+    name = "in"
+    applicable_types = set()  # 任意标量(值转字符串比较)
+    is_aggregate = False
+    n_params = (1, 99)  # 至少一个枚举值
+
+    def validate_params(self, params: list[str]) -> str | None:
+        return None
+
+    def check_value(self, value: Any, params: list[str]) -> str | None:
+        # 统一转字符串比较(Excel 解析后 bool/int 等已是 Python 值)
+        token = str(value).strip() if not isinstance(value, bool) else str(value).lower()
+        allowed = {p.strip() for p in params}
+        # bool 特殊处理:Excel 里 "true"/"false" 已转 bool;枚举通常写字符串
+        if token not in allowed:
+            return f"值 {value!r} 不在集合 {sorted(allowed)} 内"
+        return None
+
+
 # —— 注册表:加规则的唯一入口 ——
 # Task 3-5 会填入具体规则子类
 REGISTRY: dict[str, type[Rule]] = {
     "non_empty": NonEmptyRule,
     "range": RangeRule,
     "elem_range": ElemRangeRule,
+    "len": LenRule,
+    "regex": RegexRule,
+    "in": InRule,
 }
 
 
