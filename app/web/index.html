@@ -4,48 +4,77 @@
 <meta charset="UTF-8" />
 <title>Excel → 开发数据 导出工具</title>
 <style>
+  :root {
+    --bg: #f5f6f8;
+    --surface: #fff;
+    --surface-2: #fafbfc;
+    --text: #222;
+    --text-muted: #666;
+    --text-faint: #999;
+    --border: #e3e6ea;
+    --border-light: #eee;
+    --input-border: #ccc;
+    --primary: #4a7dff;
+    --primary-hover: #3a66d8;
+    --primary-bg: #eef3ff;
+    --header-bg: #2b3a55;
+    --log-bg: #1e1e1e;
+    --log-text: #d4d4d4;
+    --log-meta: #888;
+    --row-hover: #f0f5ff;
+    --badge-both-bg: #e6f4ea; --badge-both-tx: #1e7e34;
+    --badge-client-bg: #e7f0ff; --badge-client-tx: #1565c0;
+    --badge-server-bg: #fff3e0; --badge-server-tx: #b25400;
+    --code-bg: #f0f2f5;
+    --field-pill-bg: #f0f2f5;
+    --ok: #2e8b57; --err: #d33; --warn: #d97706;
+  }
   * { box-sizing: border-box; }
-  body { margin: 0; font-family: "Segoe UI", "Microsoft YaHei", sans-serif; background: #f5f6f8; color: #222; }
-  header { background: #2b3a55; color: #fff; padding: 14px 24px; font-size: 18px; font-weight: 600; }
+  body { margin: 0; font-family: "Segoe UI", "Microsoft YaHei", sans-serif; background: var(--bg); color: var(--text); }
+  header { background: var(--header-bg); color: #fff; padding: 14px 24px; font-size: 18px; font-weight: 600; }
   .wrap { max-width: 1200px; margin: 0 auto; padding: 20px; }
-  .card { background: #fff; border: 1px solid #e3e6ea; border-radius: 8px; padding: 16px 18px; margin-bottom: 16px; box-shadow: 0 1px 2px rgba(0,0,0,.03); }
-  .card h2 { margin: 0 0 12px; font-size: 15px; color: #2b3a55; border-left: 3px solid #4a7dff; padding-left: 8px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px 18px; margin-bottom: 16px; box-shadow: 0 1px 2px rgba(0,0,0,.03); }
+  .card h2 { margin: 0 0 12px; font-size: 15px; color: var(--header-bg); border-left: 3px solid var(--primary); padding-left: 8px; }
   .row { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
-  .row label { width: 130px; color: #666; font-size: 13px; }
-  .row input[type=text] { flex: 1; min-width: 240px; padding: 7px 9px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
-  .hint { font-size: 11px; color: #999; margin-left: 4px; }
+  .row label { width: 130px; color: var(--text-muted); font-size: 13px; }
+  .row input[type=text] { flex: 1; min-width: 240px; padding: 7px 9px; border: 1px solid var(--input-border); border-radius: 4px; font-size: 13px; }
+  .hint { font-size: 11px; color: var(--text-faint); margin-left: 4px; }
   .actions { display: flex; gap: 10px; margin-top: 4px; flex-wrap: wrap; }
-  button { padding: 8px 16px; border: 0; border-radius: 4px; cursor: pointer; font-size: 13px; background: #4a7dff; color: #fff; transition: background .15s; }
-  button:hover { background: #3a66d8; }
-  button.ghost { background: #fff; color: #4a7dff; border: 1px solid #4a7dff; }
-  button.ghost:hover { background: #eef3ff; }
-  button.gray { background: #888; }
-  button.gray:hover { background: #777; }
+  button { padding: 8px 16px; border: 0; border-radius: 4px; cursor: pointer; font-size: 13px; background: var(--primary); color: #fff; transition: background .15s; }
+  button:hover { background: var(--primary-hover); }
+  button.ghost { background: #fff; color: var(--primary); border: 1px solid var(--primary); }
+  button.ghost:hover { background: var(--primary-bg); }
+  button.gray { background: var(--text-muted); }
+  button.gray:hover { background: var(--text-muted); }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th, td { padding: 7px 9px; border-bottom: 1px solid #eee; text-align: left; }
-  th { background: #fafbfc; color: #555; font-weight: 600; }
-  .ok { color: #2e8b57; font-weight: 600; }
-  .err { color: #d33; font-weight: 600; }
-  .warn { color: #d97706; font-weight: 600; }
+  th, td { padding: 7px 9px; border-bottom: 1px solid var(--border-light); text-align: left; }
+  th { background: var(--surface-2); color: #555; font-weight: 600; }
+  .ok { color: var(--ok); font-weight: 600; }
+  .err { color: var(--err); font-weight: 600; }
+  .warn { color: var(--warn); font-weight: 600; }
   .status-icon { font-size: 15px; }
-  .log { max-height: 320px; overflow-y: auto; background: #1e1e1e; color: #d4d4d4; padding: 12px; border-radius: 6px; font-family: Consolas, monospace; font-size: 12px; line-height: 1.6; }
+  .log { max-height: 320px; overflow-y: auto; background: var(--log-bg); color: var(--log-text); padding: 12px; border-radius: 6px; font-family: Consolas, monospace; font-size: 12px; line-height: 1.6; }
   .log .lv-ERROR { color: #ff6b6b; }
   .log .lv-WARNING { color: #ffd166; }
   .log .lv-INFO { color: #8dd0a8; }
-  .log .meta { color: #888; }
+  .log .meta { color: var(--log-meta); }
   .table-list tr { cursor: pointer; }
-  .table-list tr:hover { background: #f0f5ff; }
+  .table-list tr:hover { background: var(--row-hover); }
   .preview { display: none; }
   .preview.active { display: block; }
   .badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 11px; margin-right: 4px; }
-  .b-both { background: #e6f4ea; color: #1e7e34; }
-  .b-client { background: #e7f0ff; color: #1565c0; }
-  .b-server { background: #fff3e0; color: #b25400; }
-  .small { font-size: 12px; color: #888; }
-  .field-pill { display: inline-block; background: #f0f2f5; padding: 2px 7px; border-radius: 10px; margin: 2px; font-size: 12px; }
+  .b-both { background: var(--badge-both-bg); color: var(--badge-both-tx); }
+  .b-client { background: var(--badge-client-bg); color: var(--badge-client-tx); }
+  .b-server { background: var(--badge-server-bg); color: var(--badge-server-tx); }
+  .small { font-size: 12px; color: var(--log-meta); }
+  .field-pill { display: inline-block; background: var(--field-pill-bg); padding: 2px 7px; border-radius: 10px; margin: 2px; font-size: 12px; }
   .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #ccc; border-top-color: #4a7dff; border-radius: 50%; animation: spin .7s linear infinite; vertical-align: -2px; }
   @keyframes spin { to { transform: rotate(360deg); } }
 </style>
+<script>
+  document.documentElement.setAttribute('data-theme',
+    localStorage.getItem('theme') || 'light');
+</script>
 </head>
 <body>
 <header>Excel → 开发数据 导出工具</header>
