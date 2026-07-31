@@ -229,15 +229,101 @@ class InRule(Rule):
         return None
 
 
+# —— 聚合规则 ——
+
+
+def _skip_empty_for_aggregate(col_values: ColValues) -> list[tuple[int, Any]]:
+    """聚合规则跳过空值(None / "" / []),只对有效值判断。
+
+    理由:空值策略 D8 —— 空值由 non_empty 显式管,聚合规则不因空值报错。
+    """
+    out = []
+    for row_idx, val in col_values:
+        if val is None:
+            continue
+        if isinstance(val, str) and val == "":
+            continue
+        if isinstance(val, list) and len(val) == 0:
+            continue
+        out.append((row_idx, val))
+    return out
+
+
+class UniqueRule(Rule):
+    name = "unique"
+    applicable_types = set()  # 任意标量(数组作为整体值参与)
+    is_aggregate = True
+    n_params = (0, 0)
+
+    def validate_params(self, params: list[str]) -> str | None:
+        return None
+
+    def check_column(self, col_values: ColValues, params: list[str]) -> list[tuple[int, str]]:
+        seen: dict[Any, int] = {}  # value -> 首次出现行号
+        out: list[tuple[int, str]] = []
+        for row_idx, val in _skip_empty_for_aggregate(col_values):
+            # 数组用 tuple 做 key(list 不可哈希)
+            key = tuple(val) if isinstance(val, list) else val
+            if key in seen:
+                out.append((row_idx, f"值 {val!r} 与行 {seen[key]} 重复"))
+            else:
+                seen[key] = row_idx
+        return out
+
+
+class SortedRule(Rule):
+    name = "sorted"
+    applicable_types = {T_INT, T_FLOAT}
+    is_aggregate = True
+    n_params = (0, 0)
+
+    def validate_params(self, params: list[str]) -> str | None:
+        return None
+
+    def check_column(self, col_values: ColValues, params: list[str]) -> list[tuple[int, str]]:
+        vals = _skip_empty_for_aggregate(col_values)
+        out: list[tuple[int, str]] = []
+        for i in range(1, len(vals)):
+            prev_row, prev_val = vals[i - 1]
+            cur_row, cur_val = vals[i]
+            if not (cur_val > prev_val):  # 严格递增:必须 >
+                out.append((cur_row, f"值 {cur_val!r} 未严格大于上一行值 {prev_val!r}(行 {prev_row})"))
+        return out
+
+
+class SortedDescRule(Rule):
+    name = "sorted_desc"
+    applicable_types = {T_INT, T_FLOAT}
+    is_aggregate = True
+    n_params = (0, 0)
+
+    def validate_params(self, params: list[str]) -> str | None:
+        return None
+
+    def check_column(self, col_values: ColValues, params: list[str]) -> list[tuple[int, str]]:
+        vals = _skip_empty_for_aggregate(col_values)
+        out: list[tuple[int, str]] = []
+        for i in range(1, len(vals)):
+            prev_row, prev_val = vals[i - 1]
+            cur_row, cur_val = vals[i]
+            if not (cur_val < prev_val):
+                out.append((cur_row, f"值 {cur_val!r} 未严格小于上一行值 {prev_val!r}(行 {prev_row})"))
+        return out
+
+
 # —— 注册表:加规则的唯一入口 ——
-# Task 3-5 会填入具体规则子类
 REGISTRY: dict[str, type[Rule]] = {
+    # 逐值
     "non_empty": NonEmptyRule,
     "range": RangeRule,
     "elem_range": ElemRangeRule,
     "len": LenRule,
     "regex": RegexRule,
     "in": InRule,
+    # 聚合
+    "unique": UniqueRule,
+    "sorted": SortedRule,
+    "sorted_desc": SortedDescRule,
 }
 
 
