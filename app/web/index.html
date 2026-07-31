@@ -68,6 +68,13 @@
   .b-server { background: var(--badge-server-bg); color: var(--badge-server-tx); }
   .small { font-size: 12px; color: var(--log-meta); }
   .field-pill { display: inline-block; background: var(--field-pill-bg); padding: 2px 7px; border-radius: 10px; margin: 2px; font-size: 12px; }
+  .proj-bar { display: flex; gap: 8px; align-items: center; padding: 8px 10px; background: var(--surface-2); border: 1px solid var(--border-light); border-radius: 6px; margin-bottom: 12px; }
+  .proj-bar label { color: var(--text-muted); font-size: 13px; width: auto; }
+  .proj-bar select { flex: 1; min-width: 180px; padding: 6px 8px; border: 1px solid var(--input-border); border-radius: 4px; font-size: 13px; background: var(--surface); color: var(--text); max-width: 420px; }
+  .proj-bar button { padding: 5px 10px; font-size: 12px; }
+  .proj-bar .mini-btn { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
+  .proj-bar .mini-btn:hover { background: var(--primary-bg); color: var(--primary); }
+  .proj-bar .mini-btn.danger:hover { background: #fde8e8; color: var(--err); }
   .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #ccc; border-top-color: #4a7dff; border-radius: 50%; animation: spin .7s linear infinite; vertical-align: -2px; }
   @keyframes spin { to { transform: rotate(360deg); } }
   [data-theme="dark"] {
@@ -165,6 +172,13 @@
   <!-- 配置 -->
   <div class="card">
     <h2>路径配置</h2>
+    <div class="proj-bar">
+      <label>项目:</label>
+      <select id="project_select" onchange="onProjectChange()"></select>
+      <button class="mini-btn" onclick="newProject()" title="新建项目">＋ 新建</button>
+      <button class="mini-btn" onclick="renameProject()" title="重命名当前项目">✎ 重命名</button>
+      <button class="mini-btn danger" onclick="deleteProject()" title="删除当前项目">🗑 删除</button>
+    </div>
     <div class="row"><label>Excel 输入目录</label><input id="input_dir" type="text" placeholder="F:\...\Excels" /></div>
     <div class="row"><label>Client 二进制输出</label><input id="client_bin" type="text" placeholder="...\out_client_bin" /></div>
     <div class="row"><label>Client 代码输出</label><input id="client_cs" type="text" placeholder="...\out_client_cs" /><span class="hint">命名空间按此目录推导</span><input id="client_namespace" type="text" placeholder="命名空间覆盖(可空)" style="max-width:180px" /><input id="client_lang" type="text" value="cs" style="max-width:90px" title="client 端代码语言" /><span class="hint">语言</span></div>
@@ -340,28 +354,181 @@ async function post(url, body) {
   const r = await fetch(API + url, { method:'POST', headers:{'Content-Type':'application/json'}, body: body ? JSON.stringify(body) : undefined });
   return r.json();
 }
+async function put(url, body) {
+  const r = await fetch(API + url, { method:'PUT', headers:{'Content-Type':'application/json'}, body: body ? JSON.stringify(body) : undefined });
+  return r.json();
+}
+async function delRequest(url, params) {
+  const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+  const r = await fetch(API + url + qs, { method:'DELETE' });
+  return r.json();
+}
 async function get(url) {
   const r = await fetch(API + url);
   return r.json();
 }
 
+const FORM_KEYS = ['input_dir','client_bin','client_cs','server_bin','server_cs','client_namespace','server_namespace','client_lang','server_lang'];
+
+// ---------- 表单 ↔ 配置 ----------
+function fillForm(c) {
+  for (const k of FORM_KEYS) if ($(k)) $(k).value = (c && c[k]) || '';
+  $('subdirs_by_table').checked = !!(c && c.subdirs_by_table);
+}
+function readForm() {
+  const body = {};
+  for (const k of FORM_KEYS) body[k] = $(k).value;
+  body.subdirs_by_table = $('subdirs_by_table').checked;
+  return body;
+}
+function serializeForm() {
+  return JSON.stringify(readForm());
+}
+let savedSnapshot = serializeForm();  // 最近一次已落盘的活动项目表单快照
+function isDirty() { return serializeForm() !== savedSnapshot; }
+
+// ---------- 项目管理 ----------
+let projectList = [];   // [{name}]
+
+async function refreshProjects(activeName) {
+  const r = await get('/api/projects');
+  projectList = r.projects || [];
+  const sel = $('project_select');
+  const prev = activeName || sel.value;
+  sel.innerHTML = projectList.map(p => `<option value="${escapeHtml(p.name)}">${escapeHtml(p.name)}</option>`).join('');
+  if (prev && projectList.some(p => p.name === prev)) sel.value = prev;
+  else if (r.active) sel.value = r.active;
+}
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+
+// 下拉切换:脏检查 → 三选一确认
+async function onProjectChange() {
+  const sel = $('project_select');
+  const newName = sel.value;
+  const oldName = findPrevActiveName();
+  if (newName === oldName) return;
+  if (isDirty()) {
+    const choice = await askDirtySwitch(oldName, newName);  // 'save' | 'discard' | 'cancel'
+    if (choice === 'cancel') { selectSilently(oldName); return; }
+    if (choice === 'save') {
+      const r = await post('/api/config', readForm());
+      if (!r.ok) { logLine('lv-ERROR', '保存失败: ' + (r.error || JSON.stringify(r))); selectSilently(oldName); return; }
+      savedSnapshot = serializeForm();
+      logLine('lv-INFO', `已保存项目「${oldName}」`);
+    }
+  }
+  // 执行切换
+  const r = await put('/api/projects/active', { name: newName });
+  if (!r.ok) { logLine('lv-ERROR', '切换失败: ' + (r.error || JSON.stringify(r))); selectSilently(oldName); return; }
+  fillForm(r.config || {});
+  savedSnapshot = serializeForm();
+  logLine('lv-INFO', `已切换到项目「${newName}」`);
+}
+
+function findPrevActiveName() {
+  // savedSnapshot 对应的活动项目名 = 当前下拉显示前已被记录的活动名;
+  // 但切换发生在 change 之后,我们用 module 级变量记录"上次生效的活动名"更稳。
+  return lastActiveName;
+}
+let lastActiveName = '';
+
+function selectSilently(name) {
+  const sel = $('project_select');
+  sel.value = name;  // 还原选择,不触发逻辑
+}
+
+// 三选一确认对话框(复用 modal-mask 风格)
+function askDirtySwitch(oldName, newName) {
+  return new Promise(resolve => {
+    const mask = document.createElement('div');
+    mask.className = 'modal-mask';
+    mask.innerHTML = `
+      <div class="modal-box" style="max-width:460px">
+        <div class="modal-head">
+          <span class="modal-title">未保存的修改</span>
+        </div>
+        <div class="modal-body" style="padding:18px">
+          <p>项目「${escapeHtml(oldName)}」的配置已被修改但未保存。切换到「${escapeHtml(newName)}」前:</p>
+          <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:16px">
+            <button class="ghost" data-act="cancel">取消</button>
+            <button class="gray" data-act="discard">丢弃</button>
+            <button data-act="save">保存当前并切换</button>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(mask);
+    mask.addEventListener('click', e => {
+      const act = e.target.getAttribute && e.target.getAttribute('data-act');
+      if (act) { document.body.removeChild(mask); resolve(act); }
+      else if (e.target === mask) { document.body.removeChild(mask); resolve('cancel'); }
+    });
+  });
+}
+
+async function newProject() {
+  const name = prompt('新建项目名称:');
+  if (name === null) return;
+  const trimmed = name.trim();
+  if (!trimmed) { logLine('lv-ERROR', '项目名不能为空'); return; }
+  const r = await post('/api/projects', { name: trimmed });
+  if (!r.ok) { logLine('lv-ERROR', '新建失败: ' + (r.error || JSON.stringify(r))); return; }
+  await refreshProjects(r.active);
+  fillForm(r.config || {});
+  savedSnapshot = serializeForm();
+  lastActiveName = r.active;
+  logLine('lv-INFO', `已新建并切换到项目「${r.active}」`);
+}
+
+async function renameProject() {
+  const cur = $('project_select').value;
+  if (!cur) return;
+  const name = prompt('重命名项目:', cur);
+  if (name === null) return;
+  const trimmed = name.trim();
+  if (!trimmed || trimmed === cur) return;
+  const r = await post('/api/projects/rename', { old: cur, new: trimmed });
+  if (!r.ok) { logLine('lv-ERROR', '重命名失败: ' + (r.error || JSON.stringify(r))); return; }
+  await refreshProjects(r.active);
+  lastActiveName = r.active;
+  logLine('lv-INFO', `已重命名为「${r.active}」`);
+}
+
+async function deleteProject() {
+  const cur = $('project_select').value;
+  if (!cur) return;
+  const cnt = projectList.length;
+  const extra = (cur === lastActiveName) ? '\n删除当前活动项目将自动切换到其他项目。' : '';
+  if (!confirm(`确认删除项目「${cur}」?\n(剩余 ${cnt - 1} 个项目)${extra}`)) return;
+  const r = await delRequest('/api/projects', { name: cur });
+  if (!r.ok) { logLine('lv-ERROR', '删除失败: ' + (r.error || JSON.stringify(r))); return; }
+  await refreshProjects(r.active);
+  fillForm(r.config || {});
+  savedSnapshot = serializeForm();
+  lastActiveName = r.active;
+  logLine('lv-INFO', `已删除,当前项目:「${r.active}」`);
+}
+
 // ---------- 配置 ----------
 async function loadConfig() {
+  const list = await get('/api/projects');
+  projectList = list.projects || [];
+  const sel = $('project_select');
+  sel.innerHTML = projectList.map(p => `<option value="${escapeHtml(p.name)}">${escapeHtml(p.name)}</option>`).join('');
+  sel.value = list.active || (projectList[0] && projectList[0].name) || '';
+  lastActiveName = sel.value;
   const c = await get('/api/config');
-  for (const k of ['input_dir','client_bin','client_cs','server_bin','server_cs','client_namespace','server_namespace','client_lang','server_lang']) {
-    if ($(k)) $(k).value = c[k] || '';
-  }
-  $('subdirs_by_table').checked = !!c.subdirs_by_table;
-  logLine('lv-INFO', '已读取配置');
+  fillForm(c);
+  savedSnapshot = serializeForm();
+  logLine('lv-INFO', `已读取配置(项目:${lastActiveName || '无'})`);
 }
 async function saveConfig() {
-  const body = {};
-  for (const k of ['input_dir','client_bin','client_cs','server_bin','server_cs','client_namespace','server_namespace','client_lang','server_lang']) {
-    body[k] = $(k).value;
-  }
-  body.subdirs_by_table = $('subdirs_by_table').checked;
+  const body = readForm();
   const r = await post('/api/config', body);
-  logLine(r.ok ? 'lv-INFO' : 'lv-ERROR', r.ok ? '配置已保存' : ('保存失败: ' + JSON.stringify(r)));
+  if (r.ok) savedSnapshot = serializeForm();
+  logLine(r.ok ? 'lv-INFO' : 'lv-ERROR', r.ok ? `配置已保存(项目:${$('project_select').value})` : ('保存失败: ' + JSON.stringify(r)));
 }
 
 // ---------- 扫描 ----------

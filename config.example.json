@@ -1,12 +1,29 @@
 {
-  "input_dir": "./sample",
-  "client_bin": "./out",
-  "client_cs": "./out",
-  "server_bin": "./out",
-  "server_cs": "./out",
-  "client_namespace": "",
-  "server_namespace": "",
-  "client_lang": "cs",
-  "server_lang": "cs",
-  "subdirs_by_table": false
+  "projects": {
+    "默认": {
+      "input_dir": "./sample",
+      "client_bin": "./out",
+      "client_cs": "./out",
+      "server_bin": "./out",
+      "server_cs": "./out",
+      "client_namespace": "",
+      "server_namespace": "",
+      "client_lang": "cs",
+      "server_lang": "cs",
+      "subdirs_by_table": false
+    },
+    "MMO服务端": {
+      "input_dir": "./sample",
+      "client_bin": "",
+      "client_cs": "",
+      "server_bin": "./mmo/server_bin",
+      "server_cs": "./mmo/server_lua",
+      "client_namespace": "",
+      "server_namespace": "",
+      "client_lang": "cs",
+      "server_lang": "lua",
+      "subdirs_by_table": true
+    }
+  },
+  "active": "默认"
 }

@@ -2,8 +2,13 @@
 
 接口:
     GET  /                返回可视化网页
-    GET  /api/config      读配置
-    POST /api/config      写配置
+    GET  /api/config      读活动项目配置
+    POST /api/config      写活动项目配置
+    GET  /api/projects    列出所有项目 + 活动名
+    POST /api/projects        body={name}         新建项目并切为活动
+    PUT  /api/projects/active body={name}         切换活动项目
+    POST /api/projects/rename body={old,new}      重命名项目
+    DELETE /api/projects      body={name}         删除项目(至少留一个)
     GET  /api/scan        扫描输入目录,返回表列表 + 预解析
     POST /api/check       仅校验,返回诊断
     POST /api/build       校验 + 导出(side=client|server|all)
@@ -19,7 +24,17 @@ from pydantic import BaseModel
 
 from . import exporter
 from . import markdown_lite
-from .config import AppConfig, load_config, save_config
+from .config import (
+    AppConfig,
+    create_project,
+    delete_project,
+    load_config,
+    load_projects,
+    rename_project,
+    save_config,
+    save_projects,
+    set_active,
+)
 from .excel_reader import scan_directory
 from .checker import check_all
 
@@ -60,6 +75,73 @@ def set_config(cfg: ConfigIn) -> dict[str, Any]:
     app_cfg = AppConfig(**cfg.model_dump())
     save_config(app_cfg)
     return {"ok": True, "config": app_cfg.to_dict()}
+
+
+# ---------------- 多项目管理 ----------------
+
+class ProjectNameIn(BaseModel):
+    name: str
+
+
+class ProjectRenameIn(BaseModel):
+    old: str
+    new: str
+
+
+@app.get("/api/projects")
+def list_projects() -> dict[str, Any]:
+    p = load_projects()
+    return {
+        "ok": True,
+        "projects": [{"name": n} for n in p.project_names()],
+        "active": p.active,
+    }
+
+
+@app.post("/api/projects")
+def api_create_project(body: ProjectNameIn) -> dict[str, Any]:
+    p = load_projects()
+    try:
+        cfg = create_project(p, body.name)
+    except ValueError as e:
+        return {"ok": False, "error": str(e)}
+    return {"ok": True, "active": p.active, "config": cfg.to_dict()}
+
+
+@app.put("/api/projects/active")
+def api_set_active(body: ProjectNameIn) -> dict[str, Any]:
+    p = load_projects()
+    try:
+        set_active(p, body.name)
+    except ValueError as e:
+        return {"ok": False, "error": str(e)}
+    return {"ok": True, "active": p.active, "config": active_cfg_dict(p)}
+
+
+@app.post("/api/projects/rename")
+def api_rename_project(body: ProjectRenameIn) -> dict[str, Any]:
+    p = load_projects()
+    try:
+        rename_project(p, body.old, body.new)
+    except ValueError as e:
+        return {"ok": False, "error": str(e)}
+    return {"ok": True, "active": p.active}
+
+
+@app.delete("/api/projects")
+def api_delete_project(name: str = Query(..., description="要删除的项目名")) -> dict[str, Any]:
+    p = load_projects()
+    try:
+        delete_project(p, name)
+    except ValueError as e:
+        return {"ok": False, "error": str(e)}
+    return {"ok": True, "active": p.active, "config": active_cfg_dict(p)}
+
+
+def active_cfg_dict(p) -> dict[str, Any]:
+    """安全取活动项目字段(忽略 p 类型)。"""
+    from .config import active_project
+    return active_project(p).to_dict()
 
 
 # ---------------- 扫描 / 预览 ----------------
