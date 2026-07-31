@@ -1,7 +1,7 @@
 """测试公用 helper:构造 TableSchema / FieldDef / DataRow。"""
 from __future__ import annotations
 
-from app.schema import FieldDef, DataRow, TableSchema
+from app.schema import FieldDef, FieldRule, DataRow, TableSchema
 
 
 def make_field(
@@ -9,7 +9,7 @@ def make_field(
     type_code: int,
     sep: str = "",
     side: str = "both",
-    rules=None,
+    rules: list[FieldRule] | None = None,
 ) -> FieldDef:
     return FieldDef(name=name, type_code=type_code, sep=sep, desc="", side=side, rules=rules or [])
 

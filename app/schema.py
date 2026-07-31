@@ -48,12 +48,19 @@ class FieldRule:
 
     由 excel_reader 从 #rule 行切分得到;checker 负责:
     1) 回显 parse_errors(规则名未知、参数个数错等)
-    2) 按 name 查 REGISTRY 执行校验
+    2) 按 name 查(后续提供的)REGISTRY 执行校验
     """
 
     name: str  # 规则名,如 "range"
     params: list[str]  # 参数,如 ["0", "99999"];无参数规则为空列表
     parse_errors: list[str]  # 解析期问题;空表示解析成功
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "name": self.name,
+            "params": list(self.params),
+            "parse_errors": list(self.parse_errors),
+        }
 
 
 @dataclass
@@ -65,7 +72,7 @@ class FieldDef:
     sep: str  # 数组分隔符;非数组时为 ""
     desc: str  # 字段说明(#desc 行)
     side: str  # both/client/server
-    rules: list["FieldRule"] = field(default_factory=list)  # #rule 行声明的规则
+    rules: list[FieldRule] = field(default_factory=list)  # #rule 行声明的规则
 
     @property
     def is_array(self) -> bool:
@@ -85,7 +92,7 @@ class FieldDef:
             "sep": self.sep,
             "desc": self.desc,
             "side": self.side,
-            "rules": [{"name": r.name, "params": list(r.params), "parse_errors": list(r.parse_errors)} for r in self.rules],
+            "rules": [r.to_dict() for r in self.rules],
         }
 
 
@@ -131,6 +138,7 @@ class TableSchema:
             "fields": [f.to_dict() for f in self.fields],
             "row_count": len(self.rows),
             "parse_errors": list(self.parse_errors),
+            "rule_sep": self.rule_sep,
         }
 
 
