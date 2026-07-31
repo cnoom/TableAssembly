@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from . import schema as S
+from . import rules as R
 from .schema import TableSchema
 
 LEVEL_ERROR = "ERROR"
@@ -21,6 +22,21 @@ LEVEL_INFO = "INFO"
 
 # 合法标识符(C# / 通用)
 _IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _is_rule_empty(value: Any) -> bool:
+    """规则校验的空值判定:None / 空串 / 空数组视为空(由 non_empty 管)。
+
+    对应空值策略 D8:逐值规则遇空值跳过,空值统一由 non_empty 显式管理,
+    避免 range/regex/len 等规则对空值重复报错。
+    """
+    if value is None:
+        return True
+    if isinstance(value, str) and value == "":
+        return True
+    if isinstance(value, list) and len(value) == 0:
+        return True
+    return False
 
 
 @dataclass
@@ -160,6 +176,44 @@ def check_table(schema: TableSchema) -> TableReport:
             # 必填/空数组提示
             if fdef.is_array and isinstance(raw, list) and len(raw) == 0:
                 add(LEVEL_WARNING, f"字段 {fdef.name!r} 为空数组", row=drow.row_index, col=fdef.name)
+
+    # 5) 自定义规则校验(#rule 行声明)
+    for fi, fdef in enumerate(schema.fields):
+        if not fdef.rules:
+            continue
+        col_values = [
+            (drow.row_index, drow.values[fi] if fi < len(drow.values) else None)
+            for drow in schema.rows
+        ]
+        for fr in fdef.rules:
+            # L2:回显解析期错误(规则名未知 / 参数错)
+            for pmsg in fr.parse_errors:
+                add(LEVEL_ERROR, f"规则 {fr.name!r}: {pmsg}", col=fdef.name)
+            if fr.parse_errors:
+                continue  # 解析失败的规则不再执行
+            rule_cls = R.REGISTRY.get(fr.name)
+            if rule_cls is None:
+                continue  # 已被 L2 记录,跳过
+            # L3:类型守卫
+            if rule_cls.applicable_types and fdef.type_code not in rule_cls.applicable_types:
+                add(
+                    LEVEL_ERROR,
+                    f"规则 {fr.name!r} 不适用于类型 {S.type_code_to_name(fdef.type_code)!r}",
+                    col=fdef.name,
+                )
+                continue
+            # 执行校验
+            if rule_cls.is_aggregate:
+                for row_idx, msg in rule_cls().check_column(col_values, fr.params):
+                    add(LEVEL_ERROR, f"{fr.name} 字段 {fdef.name!r}: {msg}", row=row_idx, col=fdef.name)
+            else:
+                for row_idx, val in col_values:
+                    # 空值跳过(non_empty 除外):D8 策略
+                    if _is_rule_empty(val) and fr.name != "non_empty":
+                        continue
+                    msg = rule_cls().check_value(val, fr.params)
+                    if msg:
+                        add(LEVEL_ERROR, f"{fr.name} 字段 {fdef.name!r}: {msg}", row=row_idx, col=fdef.name)
 
     if rep.error_count == 0:
         add(LEVEL_INFO, f"OK,{len(schema.rows)} 行,{len(schema.fields)} 字段(主键 {key_field.name if key_field else '?'})")
