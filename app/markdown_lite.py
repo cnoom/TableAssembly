@@ -96,6 +96,25 @@ def markdown_to_html(md: str) -> str:
             out.append(f"<blockquote>{inner}</blockquote>")
             continue
 
+        # GFM 表格:当前行含 |,且下一行是分隔行
+        if _is_row(line) and i + 1 < n and _is_sep(lines[i + 1]):
+            flush()
+            header_cells = _split_row(line)
+            i += 2  # 跳过表头 + 分隔行
+            body_rows: list[list[str]] = []
+            while i < n and _is_row(lines[i]):
+                body_rows.append(_split_row(lines[i]))
+                i += 1
+            ths = "".join(f"<th>{_inline(c)}</th>" for c in header_cells)
+            head = f"<thead><tr>{ths}</tr></thead>"
+            body = ""
+            for row in body_rows:
+                tds = "".join(f"<td>{_inline(c)}</td>" for c in row)
+                body += f"<tr>{tds}</tr>"
+            body = f"<tbody>{body}</tbody>" if body else ""
+            out.append(f"<table>{head}{body}</table>")
+            continue
+
         # 空行 = 段落边界
         if not line.strip():
             flush()
@@ -123,3 +142,26 @@ def _inline(text: str) -> str:
     # 链接:[text](url)
     esc = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r'<a href="\2">\1</a>', esc)
     return esc
+
+
+def _is_row(s: str) -> bool:
+    """判断是否为表格行:含 | 且以 | 开头。"""
+    return "|" in s and s.strip().startswith("|")
+
+
+def _is_sep(s: str) -> bool:
+    """判断是否为表格分隔行:仅由 | : - 空格组成,且至少一个内部 | 分隔。
+
+    能正确接受 `|---|---|`(分隔行),拒绝 `| 1 | 2 |`(数据行)。
+    """
+    return bool(re.match(r"^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)+\|?\s*$", s))
+
+
+def _split_row(line: str) -> list[str]:
+    """拆表格行:去掉首尾 |,按 | 切,去掉单元格两端空白。"""
+    s = line.strip()
+    if s.startswith("|"):
+        s = s[1:]
+    if s.endswith("|"):
+        s = s[:-1]
+    return [c.strip() for c in s.split("|")]

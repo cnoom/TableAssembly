@@ -99,3 +99,17 @@ def test_blockquote():
     assert "<blockquote>" in out
     assert "这是引用" in out
     assert "</blockquote>" in out
+
+
+def test_gfm_table():
+    md = "| A列 | B列 |\n|-----|-----|\n| 1 | 2 |\n| 3 | 4 |"
+    out = markdown_to_html(md)
+    assert "<table>" in out and "</table>" in out
+    assert "<thead>" in out
+    assert "<th>A列</th>" in out and "<th>B列</th>" in out
+    # 分隔行不应渲染成数据
+    assert "<td>---</td>" not in out and "<td>-----</td>" not in out
+    assert "<td>1</td>" in out
+    assert "<td>3</td>" in out
+    assert "<td>4</td>" in out
+    assert out.count("<tr>") >= 3  # 1 表头 + 2 数据行
