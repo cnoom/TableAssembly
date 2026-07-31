@@ -38,6 +38,12 @@ MARK_TYPE = "##"
 MARK_NAME = "#name"
 MARK_DESC = "#desc"
 MARK_CS = "#cs"
+# #rule 可带 sep 配置:#rule 或 #rule[sep=...];用前缀匹配识别
+MARK_RULE_PREFIX = "#rule"
+
+# #rule[sep=...] 解析正则:group1 = sep 内容
+_RULE_MARK_RE = re.compile(r"^#rule(?:\[\s*sep\s*=\s*(.*?)\s*\])?$")
+
 _KNOWN_MARKS = (MARK_TYPE, MARK_NAME, MARK_DESC, MARK_CS)
 
 # 解析类型声明,如 int / int[] / int[sep=|] / string[sep=##]
@@ -153,6 +159,7 @@ def read_table(file_path: str | Path) -> TableSchema:
     # 已收集的定义行的行号,用于诊断
     seen_marks: dict[str, int] = {}
     data_rows_raw: list[tuple[int, tuple]] = []
+    rule_rows: list[tuple[int, tuple]] = []  # [(excel_row, row), ...] —— #rule 行(可能多行)
 
     for idx, row in enumerate(rows_iter):
         excel_row = idx + 1
@@ -163,6 +170,27 @@ def read_table(file_path: str | Path) -> TableSchema:
         if a_str == "":
             # 数据行
             data_rows_raw.append((excel_row, row))
+            continue
+        # #rule 行(可带 [sep=...])
+        rule_m = _RULE_MARK_RE.match(a_str) if a_str.startswith(MARK_RULE_PREFIX) else None
+        if rule_m is not None:
+            # 解析 sep 配置
+            sep_raw = rule_m.group(1)
+            if sep_raw is not None:
+                if sep_raw == "":
+                    schema.parse_errors.append(f"行 {excel_row}: #rule[sep=] 的 sep 为空")
+                elif sep_raw == ",":
+                    schema.parse_errors.append(
+                        f"行 {excel_row}: #rule 的 sep 不能是 ','(与规则参数分隔符冲突)"
+                    )
+                elif schema.rule_sep == ";" and not rule_rows:
+                    # 首次出现 sep 配置,采纳
+                    schema.rule_sep = sep_raw
+                elif sep_raw != schema.rule_sep:
+                    schema.parse_errors.append(
+                        f"行 {excel_row}: #rule 的 sep 配置 {sep_raw!r} 与首次 {schema.rule_sep!r} 不一致,已忽略"
+                    )
+            rule_rows.append((excel_row, row))
             continue
         if a_str in _KNOWN_MARKS:
             if a_str in seen_marks:
@@ -249,6 +277,9 @@ def read_table(file_path: str | Path) -> TableSchema:
     # 但跳过了 parse 失败的列 —— 为稳健起见,建立 fields 原始列下标映射。
     field_indices = _build_field_indices(type_cells)
 
+    # —— 填充 #rule 规则(多行累加、稀疏、去重)——
+    _apply_rule_rows(schema, rule_rows, field_indices)
+
     for excel_row, row in data_rows_raw:
         values: list[Any] = []
         key: Any = None
@@ -290,6 +321,49 @@ def _build_field_indices(type_cells: list[Any]) -> dict[int, int]:
             mapping[fi] = i + 1  # +1 因为 row[0] 是 A 列
             fi += 1
     return mapping
+
+
+def _apply_rule_rows(
+    schema: TableSchema,
+    rule_rows: list[tuple[int, tuple]],
+    field_indices: dict[int, int],
+) -> None:
+    """把 #rule 行的单元格规则累加进对应 FieldDef.rules。
+
+    - 多行累加;空单元格跳过(稀疏)
+    - 按 (name, tuple(params)) 去重,保留首次顺序
+    - 单元格用 schema.rule_sep 切分多规则;每段 parse_rule 解析
+    """
+    from . import rules as R  # 延迟导入,避免循环依赖
+
+    # 建立 列下标(B=1) -> field 索引 的反查表
+    col_to_field: dict[int, int] = {col: fi for fi, col in field_indices.items()}
+    for excel_row, row in rule_rows:
+        # 字段区从 B 列(index=1)开始;对齐到 fields 的原始列下标
+        cells = list(row[1:]) if len(row) > 1 else []
+        for col_idx in range(1, len(cells) + 1):
+            cell = cells[col_idx - 1]
+            if cell is None or str(cell).strip() == "":
+                continue  # 稀疏:空单元格跳过
+            fi = col_to_field.get(col_idx)
+            if fi is None or fi >= len(schema.fields):
+                continue  # 该列无对应字段(类型解析失败被跳过)
+            fdef = schema.fields[fi]
+            text = str(cell).strip()
+            # 第1层切分:rule_sep 切多规则
+            segments = text.split(schema.rule_sep)
+            for seg in segments:
+                seg = seg.strip()
+                if seg == "":
+                    continue  # 残留空段跳过
+                fr = R.parse_rule(seg)
+                if fr is None:
+                    continue
+                # 去重:按 (name, tuple(params))
+                key = (fr.name, tuple(fr.params))
+                if any((r.name, tuple(r.params)) == key for r in fdef.rules):
+                    continue
+                fdef.rules.append(fr)
 
 
 def scan_directory(dir_path: str | Path) -> list[TableSchema]:
