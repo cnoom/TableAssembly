@@ -113,3 +113,51 @@ def test_gfm_table():
     assert "<td>3</td>" in out
     assert "<td>4</td>" in out
     assert out.count("<tr>") >= 3  # 1 表头 + 2 数据行
+
+
+def test_split_sections_basic():
+    md = "# 顶部标题\n\n![badge]\n\n## 第一节\n\n内容一。\n\n## 第二节\n\n内容二。"
+    secs = split_sections(md)
+    assert len(secs) == 2
+    assert secs[0]["title"] == "第一节"
+    assert secs[1]["title"] == "第二节"
+    assert "<p>内容一。</p>" in secs[0]["html"]
+    assert "<p>内容二。</p>" in secs[1]["html"]
+
+
+def test_split_sections_drops_h1_prefix():
+    """一级标题 # 及首个 ## 之前的内容应被丢弃。"""
+    md = "# 项目名\n\n徽章区\n\n## 正文"
+    secs = split_sections(md)
+    assert len(secs) == 1
+    assert secs[0]["title"] == "正文"
+    assert "徽章区" not in secs[0]["html"]
+    assert "项目名" not in "".join(s["html"] for s in secs)
+
+
+def test_split_sections_no_h2():
+    """无任何 ## 标题 → 返回空列表。"""
+    assert split_sections("只有段落\n\n没有标题") == []
+
+
+def test_split_sections_last_section_closes():
+    """末尾段无后续 ##,应正常闭合。"""
+    md = "## 唯一\n\n尾部内容。"
+    secs = split_sections(md)
+    assert len(secs) == 1
+    assert "<p>尾部内容。</p>" in secs[0]["html"]
+
+
+def test_split_sections_preserves_h3_inside_section():
+    """### 子标题应包含在其所属 ## 段的 html 里。"""
+    md = "## 父段\n\n正文。\n\n### 子标题\n\n子正文。"
+    secs = split_sections(md)
+    assert len(secs) == 1
+    assert "<h3>子标题</h3>" in secs[0]["html"]
+
+
+def test_split_sections_id_equals_title():
+    """id 字段直接用标题原文(中文),不做锚点转写。"""
+    md = "## 表格式规范\n\n内容。"
+    secs = split_sections(md)
+    assert secs[0]["id"] == "表格式规范"

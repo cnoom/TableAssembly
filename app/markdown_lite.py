@@ -11,12 +11,41 @@ import re
 
 
 def split_sections(md: str) -> list[dict]:
-    """按标题把 markdown 切片为多个段落。
+    """按 ## 标题把 markdown 切成段。
 
-    占位实现:Task 6 会替换为真正的标题切分逻辑。
-    本任务(Task 1)仅为满足测试文件的导入,不调用。
+    返回 [{id, title, html}]。id 与 title 均为标题原文(中文)。
+    一级标题(#)及其之前的内容(徽章区)丢弃。
+    ### 子标题包含在其所属 ## 段内,不单独成段。
     """
-    return []
+    lines = md.split("\n")
+    sections: list[dict] = []
+    current_title: str | None = None
+    current_body: list[str] = []
+
+    for line in lines:
+        m = re.match(r"^##\s+(.*)$", line)
+        if m:
+            if current_title is not None:
+                sections.append({
+                    "id": current_title,
+                    "title": current_title,
+                    "html": markdown_to_html("\n".join(current_body)),
+                })
+            current_title = m.group(1).strip()
+            current_body = []
+        elif current_title is not None:
+            # 跳过一级标题行,不进任何段(它在首个 ## 之前,本来就被丢弃)
+            current_body.append(line)
+        # current_title is None:仍在 ## 之前(含 # 一级标题区),丢弃
+
+    if current_title is not None:
+        sections.append({
+            "id": current_title,
+            "title": current_title,
+            "html": markdown_to_html("\n".join(current_body)),
+        })
+
+    return sections
 
 
 def markdown_to_html(md: str) -> str:
