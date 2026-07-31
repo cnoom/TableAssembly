@@ -9,8 +9,9 @@ def make_field(
     type_code: int,
     sep: str = "",
     side: str = "both",
+    rules=None,
 ) -> FieldDef:
-    return FieldDef(name=name, type_code=type_code, sep=sep, desc="", side=side)
+    return FieldDef(name=name, type_code=type_code, sep=sep, desc="", side=side, rules=rules or [])
 
 
 def make_schema(

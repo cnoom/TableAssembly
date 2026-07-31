@@ -43,6 +43,20 @@ VALID_SIDES = ("both", "client", "server")
 
 
 @dataclass
+class FieldRule:
+    """解析后的一条规则(可能含解析期错误)。
+
+    由 excel_reader 从 #rule 行切分得到;checker 负责:
+    1) 回显 parse_errors(规则名未知、参数个数错等)
+    2) 按 name 查 REGISTRY 执行校验
+    """
+
+    name: str  # 规则名,如 "range"
+    params: list[str]  # 参数,如 ["0", "99999"];无参数规则为空列表
+    parse_errors: list[str]  # 解析期问题;空表示解析成功
+
+
+@dataclass
 class FieldDef:
     """一个字段的定义。"""
 
@@ -51,6 +65,7 @@ class FieldDef:
     sep: str  # 数组分隔符;非数组时为 ""
     desc: str  # 字段说明(#desc 行)
     side: str  # both/client/server
+    rules: list["FieldRule"] = field(default_factory=list)  # #rule 行声明的规则
 
     @property
     def is_array(self) -> bool:
@@ -70,6 +85,7 @@ class FieldDef:
             "sep": self.sep,
             "desc": self.desc,
             "side": self.side,
+            "rules": [{"name": r.name, "params": list(r.params), "parse_errors": list(r.parse_errors)} for r in self.rules],
         }
 
 
@@ -92,6 +108,7 @@ class TableSchema:
     rows: list[DataRow] = field(default_factory=list)
     # 解析阶段的原始诊断(读表时的结构性问题,如缺定义行);checker 会补充数据级诊断
     parse_errors: list[str] = field(default_factory=list)
+    rule_sep: str = ";"  # #rule 行多条规则的分隔符;从 #rule[sep=...] 读,默认 ";"
 
     @property
     def key_field(self) -> FieldDef | None:
