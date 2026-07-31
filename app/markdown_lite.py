@@ -66,6 +66,36 @@ def markdown_to_html(md: str) -> str:
             i += 1
             continue
 
+        # 无序列表 - / 有序列表 1.
+        m_ul = re.match(r"^\s*[-*]\s+(.*)$", line)
+        m_ol = re.match(r"^\s*\d+\.\s+(.*)$", line)
+        if m_ul or m_ol:
+            flush()
+            tag = "ul" if m_ul else "ol"
+            items: list[str] = [_inline((m_ul or m_ol).group(1).strip())]
+            i += 1
+            pat = r"^\s*[-*]\s+(.*)$" if m_ul else r"^\s*\d+\.\s+(.*)$"
+            while i < n:
+                mm = re.match(pat, lines[i])
+                if not mm:
+                    break
+                items.append(_inline(mm.group(1).strip()))
+                i += 1
+            lis = "".join(f"<li>{it}</li>" for it in items)
+            out.append(f"<{tag}>{lis}</{tag}>")
+            continue
+
+        # 引用 >
+        if line.lstrip().startswith(">"):
+            flush()
+            quote_lines: list[str] = []
+            while i < n and lines[i].lstrip().startswith(">"):
+                quote_lines.append(re.sub(r"^\s*>\s?", "", lines[i]))
+                i += 1
+            inner = _inline(" ".join(l.strip() for l in quote_lines))
+            out.append(f"<blockquote>{inner}</blockquote>")
+            continue
+
         # 空行 = 段落边界
         if not line.strip():
             flush()

@@ -72,3 +72,30 @@ def test_inline_bold():
 def test_inline_link():
     out = markdown_to_html("见 [文档](http://example.com) 详情")
     assert '<a href="http://example.com">文档</a>' in out
+
+
+def test_unordered_list():
+    md = "- 苹果\n- 香蕉\n- 橙子"
+    out = markdown_to_html(md)
+    assert "<ul>" in out
+    assert "<li>苹果</li>" in out
+    assert "<li>香蕉</li>" in out
+    assert "<li>橙子</li>" in out
+    assert "</ul>" in out
+
+
+def test_ordered_list():
+    md = "1. 第一\n2. 第二\n3. 第三"
+    out = markdown_to_html(md)
+    assert "<ol>" in out
+    assert "<li>第一</li>" in out
+    assert "<li>第二</li>" in out
+    assert "</ol>" in out
+
+
+def test_blockquote():
+    md = "> 这是引用\n> 第二行"
+    out = markdown_to_html(md)
+    assert "<blockquote>" in out
+    assert "这是引用" in out
+    assert "</blockquote>" in out
