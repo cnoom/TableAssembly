@@ -187,10 +187,15 @@ def _is_sep(s: str) -> bool:
 
 
 def _split_row(line: str) -> list[str]:
-    """拆表格行:去掉首尾 |,按 | 切,去掉单元格两端空白。"""
+    """拆表格行:去掉首尾 |,按未转义的 | 切,再去掉单元格两端空白。
+
+    单元格内的 \\| 表示字面管道符,不应被当成列分隔符;切完后还原成 |。
+    """
     s = line.strip()
     if s.startswith("|"):
         s = s[1:]
     if s.endswith("|"):
         s = s[:-1]
-    return [c.strip() for c in s.split("|")]
+    # 只在未被反斜杠转义的 | 处切分,再把 \| 还原成 |
+    parts = re.split(r"(?<!\\)\|", s)
+    return [p.replace("\\|", "|").strip() for p in parts]

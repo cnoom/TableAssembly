@@ -186,3 +186,13 @@ def test_real_readme_html_no_raw_script():
     md = readme.read_text(encoding="utf-8")
     for s in split_sections(md):
         assert "<script>" not in s["html"]
+
+
+def test_gfm_table_escaped_pipe():
+    """单元格内的 \| 表示字面管道符,不应被当成列分隔符。"""
+    md = "| A | B |\n|---|---|\n| int[sep=\|] | x |"
+    out = markdown_to_html(md)
+    # 应当只有 2 个数据单元格(一列 int[sep=|],一列 x),而非被错切成 3 个
+    assert out.count("<td>") == 2
+    assert "<td>int[sep=|]</td>" in out   # 反斜杠去除,管道符保留
+    assert "<td>x</td>" in out
