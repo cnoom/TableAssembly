@@ -13,7 +13,6 @@ def test_parse_rule_no_params():
     assert fr.parse_errors == []
 
 
-@pytest.mark.skip(reason="Task 4 注册 RangeRule 后取消跳过:断言 parse_errors==[] 需规则已注册")
 def test_parse_rule_with_params():
     fr = parse_rule("range:0,99999")
     assert fr.name == "range"

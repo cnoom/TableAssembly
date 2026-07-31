@@ -20,7 +20,14 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any
 
-from .schema import FieldRule
+from .schema import (
+    FieldRule,
+    T_INT,
+    T_FLOAT,
+    T_STRING,
+    T_INT_ARRAY,
+    T_FLOAT_ARRAY,
+)
 
 
 # 列值序列的类型别名:[(row_index, value), ...];value 为标量或数组
@@ -60,9 +67,97 @@ class Rule(ABC):
         raise NotImplementedError(f"{self.name} 是逐值规则,不支持 check_column")
 
 
+# —— 逐值规则 ——
+
+
+def _parse_bound(token: str) -> float | None | str:
+    """解析范围边界。'*' -> None(不限);非法 -> 'ERR' 标记。"""
+    t = token.strip()
+    if t == "*":
+        return None
+    try:
+        return float(t)
+    except ValueError:
+        return "ERR"
+
+
+class NonEmptyRule(Rule):
+    name = "non_empty"
+    applicable_types = set()  # 任意类型
+    is_aggregate = False
+    n_params = (0, 0)
+
+    def validate_params(self, params: list[str]) -> str | None:
+        return None
+
+    def check_value(self, value: Any, params: list[str]) -> str | None:
+        if value is None:
+            return "值为空"
+        if isinstance(value, list):
+            if len(value) == 0:
+                return "数组为空"
+            return None
+        if isinstance(value, str) and value == "":
+            return "字符串为空"
+        return None
+
+
+class RangeRule(Rule):
+    name = "range"
+    applicable_types = {T_INT, T_FLOAT}
+    is_aggregate = False
+    n_params = (2, 2)
+
+    def validate_params(self, params: list[str]) -> str | None:
+        lo = _parse_bound(params[0])
+        hi = _parse_bound(params[1])
+        if lo == "ERR" or hi == "ERR":
+            return f"参数非法(应为数字或 *): {params}"
+        if lo is None and hi is None:
+            return "range 两边都为 * 无意义"
+        if lo is not None and hi is not None and lo > hi:
+            return f"下界 {lo} 大于上界 {hi}"
+        return None
+
+    def check_value(self, value: Any, params: list[str]) -> str | None:
+        lo = _parse_bound(params[0])
+        hi = _parse_bound(params[1])
+        if lo is not None and value < lo:
+            return f"值 {value} 小于下界 {lo:g}"
+        if hi is not None and value > hi:
+            return f"值 {value} 大于上界 {hi:g}"
+        return None
+
+
+class ElemRangeRule(Rule):
+    name = "elem_range"
+    applicable_types = {T_INT_ARRAY, T_FLOAT_ARRAY}
+    is_aggregate = False
+    n_params = (2, 2)
+
+    def validate_params(self, params: list[str]) -> str | None:
+        return RangeRule().validate_params(params)
+
+    def check_value(self, value: Any, params: list[str]) -> str | None:
+        if not isinstance(value, list):
+            return f"elem_range 仅作用于数组,得到 {type(value).__name__}"
+        lo = _parse_bound(params[0])
+        hi = _parse_bound(params[1])
+        for elem in value:
+            if lo is not None and elem < lo:
+                return f"元素 {elem} 小于下界 {lo:g}"
+            if hi is not None and elem > hi:
+                return f"元素 {elem} 大于上界 {hi:g}"
+        return None
+
+
 # —— 注册表:加规则的唯一入口 ——
 # Task 3-5 会填入具体规则子类
-REGISTRY: dict[str, type[Rule]] = {}
+REGISTRY: dict[str, type[Rule]] = {
+    "non_empty": NonEmptyRule,
+    "range": RangeRule,
+    "elem_range": ElemRangeRule,
+}
 
 
 def parse_rule(text: str) -> FieldRule | None:
