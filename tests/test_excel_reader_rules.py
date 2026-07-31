@@ -185,3 +185,55 @@ def test_rule_row_must_not_break_existing_marks():
         assert s.fields[0].rules[0].name == "unique"
     finally:
         _cleanup()
+
+
+def test_bare_rule_then_explicit_sep_adopted():
+    """裸 #rule 不锁定 sep;后续 #rule[sep=X] 能被采纳。"""
+    try:
+        _write([
+            ("##", "int"),
+            ("#name", "hp"),
+            ("#rule", "unique"),            # 裸,不锁定
+            ("#rule[sep=##]", "range:0,9##non_empty"),  # 现在应被采纳
+            ("", 50),
+        ])
+        s = excel_reader.read_table(TMP)
+        assert s.rule_sep == "##"
+        assert [r.name for r in s.fields[0].rules] == ["unique", "range", "non_empty"]
+        assert not any("不一致" in e for e in s.parse_errors)
+    finally:
+        _cleanup()
+
+
+def test_inconsistent_sep_second_rejected():
+    """#rule[sep=##] 后再 #rule[sep=|] :第二个被拒,rule_sep 保持首个。"""
+    try:
+        _write([
+            ("##", "int"),
+            ("#name", "hp"),
+            ("#rule[sep=##]", "unique"),
+            ("#rule[sep=|]", "sorted"),
+            ("", 50),
+        ])
+        s = excel_reader.read_table(TMP)
+        assert s.rule_sep == "##"
+        assert any("不一致" in e for e in s.parse_errors)
+    finally:
+        _cleanup()
+
+
+def test_unknown_rule_name_flows_to_parse_errors():
+    """未知规则名:reader 仍填进 rules,但带 parse_errors,由 checker 回显。"""
+    try:
+        _write([
+            ("##", "int"),
+            ("#name", "hp"),
+            ("#rule", "foobar:1,2"),
+            ("", 50),
+        ])
+        s = excel_reader.read_table(TMP)
+        assert len(s.fields[0].rules) == 1
+        assert s.fields[0].rules[0].name == "foobar"
+        assert s.fields[0].rules[0].parse_errors  # 非空
+    finally:
+        _cleanup()

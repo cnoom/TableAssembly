@@ -23,6 +23,7 @@ from typing import Any
 
 import openpyxl
 
+from . import rules as R
 from . import schema as S
 from .schema import (
     BASE_TYPES,
@@ -160,6 +161,7 @@ def read_table(file_path: str | Path) -> TableSchema:
     seen_marks: dict[str, int] = {}
     data_rows_raw: list[tuple[int, tuple]] = []
     rule_rows: list[tuple[int, tuple]] = []  # [(excel_row, row), ...] —— #rule 行(可能多行)
+    rule_sep_locked: bool = False  # 是否已通过 #rule[sep=...] 显式锁定 sep
 
     for idx, row in enumerate(rows_iter):
         excel_row = idx + 1
@@ -183,9 +185,10 @@ def read_table(file_path: str | Path) -> TableSchema:
                     schema.parse_errors.append(
                         f"行 {excel_row}: #rule 的 sep 不能是 ','(与规则参数分隔符冲突)"
                     )
-                elif schema.rule_sep == ";" and not rule_rows:
-                    # 首次出现 sep 配置,采纳
+                elif not rule_sep_locked:
+                    # 首次出现有效 sep 配置,采纳并锁定
                     schema.rule_sep = sep_raw
+                    rule_sep_locked = True
                 elif sep_raw != schema.rule_sep:
                     schema.parse_errors.append(
                         f"行 {excel_row}: #rule 的 sep 配置 {sep_raw!r} 与首次 {schema.rule_sep!r} 不一致,已忽略"
@@ -334,9 +337,7 @@ def _apply_rule_rows(
     - 按 (name, tuple(params)) 去重,保留首次顺序
     - 单元格用 schema.rule_sep 切分多规则;每段 parse_rule 解析
     """
-    from . import rules as R  # 延迟导入,避免循环依赖
-
-    # 建立 列下标(B=1) -> field 索引 的反查表
+    # 建立 列下标(B=1) -> field 索引的反查表
     col_to_field: dict[int, int] = {col: fi for fi, col in field_indices.items()}
     for excel_row, row in rule_rows:
         # 字段区从 B 列(index=1)开始;对齐到 fields 的原始列下标
