@@ -53,6 +53,7 @@ def derive_namespace(output_dir: str, override: str | None = None) -> str:
     - override 非空 -> 直接 sanitize 后用
     - 否则取目录最后一段作为根
     - 非法字符:连字符 -> _,数字开头加 _,去空格,其它非 [A-Za-z0-9_] 删掉
+    - 点分隔符保留(命名空间分段清洗):"Game.Tables-2" -> "Game.Tables_2"
     - 全空时回退 "GameData"
     """
     if override and override.strip():
@@ -66,13 +67,17 @@ def _sanitize_namespace(name: str) -> str:
         return ""
     s = name.replace(" ", "").replace("\t", "")
     s = s.replace("-", "_")
-    out_chars: list[str] = []
-    for ch in s:
-        if ch.isalnum() or ch == "_":
-            out_chars.append(ch)
-    out = "".join(out_chars)
-    if not out:
-        return ""
-    if out[0].isdigit():
-        out = "_" + out
+    # 点是命名空间合法分隔符:逐段清洗,保点。整段清洗会吞点
+    #(spec 027 联调实证:--client-ns Demo.Tables 曾被洗成 DemoTables)。
+    segments: list[str] = []
+    for seg in s.split("."):
+        out_chars: list[str] = []
+        for ch in seg:
+            if ch.isalnum() or ch == "_":
+                out_chars.append(ch)
+        seg_out = "".join(out_chars)
+        if seg_out and seg_out[0].isdigit():
+            seg_out = "_" + seg_out
+        segments.append(seg_out)
+    out = ".".join(x for x in segments if x)
     return out
