@@ -11,6 +11,7 @@ exporter 无需改动。
 """
 from .base import CodeGenerator, GeneratorFactory, OutputFile, derive_namespace
 from .cs import CsGenerator
+from .cs_wf import CsWfGenerator
 from .go import GoGenerator
 from .java import JavaGenerator
 from .lua import LuaGenerator
@@ -18,6 +19,10 @@ from .lua import LuaGenerator
 
 def _cs_factory(namespace: str) -> CodeGenerator:
     return CsGenerator(namespace)
+
+
+def _cs_wf_factory(namespace: str) -> CodeGenerator:
+    return CsWfGenerator(namespace)
 
 
 def _go_factory(namespace: str) -> CodeGenerator:
@@ -35,6 +40,7 @@ def _lua_factory(namespace: str) -> CodeGenerator:
 # 已注册生成器工厂: name -> factory
 GENERATORS: dict[str, GeneratorFactory] = {
     "cs": _cs_factory,
+    "cs_wf": _cs_wf_factory,
     "go": _go_factory,
     "java": _java_factory,
     "lua": _lua_factory,

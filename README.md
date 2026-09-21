@@ -127,6 +127,29 @@ await table.LoadAsync(ta.bytes);
 ItemData item = table.Get(1001);   // id, name, hp, dropList ...
 ```
 
+### 在 WFFramework 宿主中使用(`cs_wf` 生成器)
+
+面向 [WFFramework](https://github.com/cnoom/framework-unity-wf)(`com.cnoom.wfframework`)宿主工程,client 语言选 **`cs_wf`**:
+
+- `XxxData` 仍为自足 POCO,但读取方法为同步 `Read(TableBinaryReader)`,类型来自框架包
+- `XxxTable` 变薄壳:`[ConfigTable("Xxx_c")]` + 继承框架 `TableBase<XxxData, 主键类型>`
+- **不再生成 TableReader.cs**(框架 Runtime 提供解析器;`shared_files` 为空)
+- 生成代码只依赖框架稳定面(跨仓契约,见框架仓 specs/027 contracts/),保持 C# 9
+
+产物由框架的配置表模块反射发现并按预热清单经 Addressables 加载,业务侧零胶水:
+接入流程与加载语义见框架包内 `Documentation~/config-tables.md`(正本)。
+
+**无头 CLI**(供 Unity 编辑器/CI 调用):
+
+```bash
+python -m app.cli projects --json
+python -m app.cli build --project 项目1 \
+  --client-bin <工程内.bytes目录> --client-cs <工程内代码目录> \
+  --client-lang cs_wf --client-ns Game.Tables --side client --json
+# 退出码 0/1/2(成功/校验有错或导出异常/用法错误);--json 输出结构化结果与逐表诊断
+# 覆盖参数只作用于本次进程,不回写 config.json
+```
+
 ## 自定义校验规则(可选)
 
 在表里加 `#rule` 定义行,可对**单个字段跨所有行**声明领域约束,校验不过即阻断导出。规则行可写多行(累加),也可留空单元格(只约束部分字段)。
@@ -191,6 +214,7 @@ ItemData item = table.Get(1001);   // id, name, hp, dropList ...
 ```
 app/
   main.py           FastAPI 接口 + 网页
+  cli.py            无头 CLI(projects/build,供 Unity 编辑器/CI 调用)
   config.py         多项目配置持久化(含旧格式自动迁移)
   schema.py         数据模型
   excel_reader.py   Excel 解析(识别 A 列标记 + 数组 sep)
@@ -201,6 +225,7 @@ app/
   codegen/
     base.py         生成器抽象基类
     cs.py           C# 生成器
+    cs_wf.py        C# 生成器·WFFramework 变体(薄壳继承框架 TableBase,不产 TableReader)
     go.py           Go 生成器
     java.py         Java 生成器
     lua.py          Lua 生成器

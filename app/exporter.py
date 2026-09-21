@@ -68,12 +68,17 @@ class ExportResult:
 
 # ---------------- 核心导出 ----------------
 
-def export_all(config: ExportConfig, schemas: list[S.TableSchema] | None = None) -> ExportResult:
+def export_all(config: ExportConfig, schemas: list[S.TableSchema] | None = None, side: str = "all") -> ExportResult:
     """执行:扫描/解析 -> 校验 -> 按归属分包导出。
 
     schemas 为 None 时自动扫描 config.input_dir。
+    side: "client" / "server" / "all"(默认)——只导出指定端,未选端静默跳过
+    (供无头 CLI 的 --side 过滤;exporter 原语义不变)。
     若校验存在 ERROR,则不导出任何文件(避免半成品)。
     """
+    if side not in ("client", "server", "all"):
+        raise ValueError(f"side 非法: {side!r}(须 client/server/all)")
+
     # 1) 解析
     if schemas is None:
         from .excel_reader import scan_directory
@@ -94,9 +99,12 @@ def export_all(config: ExportConfig, schemas: list[S.TableSchema] | None = None)
         return result
 
     # 3) 按端导出
-    for side, side_cfg in (("client", config.client), ("server", config.server)):
+    sides = (("client", config.client), ("server", config.server))
+    for side_name, side_cfg in sides:
+        if side != "all" and side_name != side:
+            continue  # --side 过滤:未选端静默跳过,不算错误
         if not side_cfg.bin_dir or not side_cfg.cs_dir:
-            result.errors.append(f"{side} 端输出目录未配置(bin/cs),跳过该端")
+            result.errors.append(f"{side_name} 端输出目录未配置(bin/cs),跳过该端")
             continue
         try:
             files = _export_side(schemas, side, side_cfg, config.subdirs_by_table)
